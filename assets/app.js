@@ -1,7 +1,7 @@
 // ===== SPOTIFY OAUTH PKCE FLOW =====
 const CLIENT_ID = 'fa5e8ae611124119aee7fd0ba733228c';
 const REDIRECT_URI = (() => {
-    const path = window.location.pathname.includes('callback.html') ? 'callback.html' : 'callback.html';
+    const path = 'callback.html';
     return `${window.location.origin}${window.location.pathname.replace(/\/[^/]*$/, '')}/${path}`;
 })();
 const SCOPES = [
@@ -13,7 +13,10 @@ const SCOPES = [
     'user-read-currently-playing'
 ].join(' ');
 
-// Generate random string for PKCE
+let moodChartInstance = null;
+let radarChartInstance = null;
+let currentTimeRange = 'medium_term';
+
 function generateRandomString(length) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
@@ -23,25 +26,20 @@ function generateRandomString(length) {
     return result;
 }
 
-// Generate code challenge from verifier
 async function generateCodeChallenge(verifier) {
     const data = new TextEncoder().encode(verifier);
     const digest = await window.crypto.subtle.digest('SHA-256', data);
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(digest)))
+    return btoa(String.fromCharCode(...new Uint8Array(digest)))
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=/g, '');
-    return base64;
 }
 
-// Initiate Spotify login
 async function initiateSpotifyLogin() {
     try {
         const codeVerifier = generateRandomString(64);
         const codeChallenge = await generateCodeChallenge(codeVerifier);
-        
         localStorage.setItem('spotify_code_verifier', codeVerifier);
-        
         const params = new URLSearchParams({
             client_id: CLIENT_ID,
             response_type: 'code',
@@ -50,7 +48,6 @@ async function initiateSpotifyLogin() {
             code_challenge_method: 'S256',
             code_challenge: codeChallenge
         });
-        
         window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`;
     } catch (error) {
         console.error('Error initiating login:', error);
@@ -58,35 +55,30 @@ async function initiateSpotifyLogin() {
     }
 }
 
-// Handle OAuth callback
 async function handleSpotifyCallback() {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const error = params.get('error');
-    
     const statusEl = document.getElementById('status');
     const errorEl = document.getElementById('error');
-    
+
     if (error) {
         errorEl.textContent = `Auth error: ${error}`;
         errorEl.style.display = 'block';
-        setTimeout(() => window.location.href = 'index.html', 3000);
+        setTimeout(() => { window.location.href = 'index.html'; }, 3000);
         return;
     }
-    
     if (!code) {
         errorEl.textContent = 'No authorization code received';
         errorEl.style.display = 'block';
-        setTimeout(() => window.location.href = 'index.html', 3000);
+        setTimeout(() => { window.location.href = 'index.html'; }, 3000);
         return;
     }
-    
+
     try {
         const codeVerifier = localStorage.getItem('spotify_code_verifier');
         if (!codeVerifier) throw new Error('Code verifier not found');
-        
         statusEl.textContent = 'Exchanging code for token...';
-        
         const response = await fetch('https://accounts.spotify.com/api/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -98,345 +90,435 @@ async function handleSpotifyCallback() {
                 code_verifier: codeVerifier
             }).toString()
         });
-        
         if (!response.ok) {
             const data = await response.json();
             throw new Error(data.error_description || 'Token exchange failed');
         }
-        
         const data = await response.json();
         localStorage.setItem('spotify_access_token', data.access_token);
         localStorage.setItem('spotify_token_expires_at', String(Date.now() + data.expires_in * 1000));
         localStorage.removeItem('spotify_code_verifier');
-        localStorage.removeItem('spotify_is_demo');
-        
         statusEl.textContent = 'Success! Redirecting...';
-        setTimeout(() => window.location.href = 'dashboard.html', 1000);
-    } catch (error) {
-        console.error('Token exchange error:', error);
-        errorEl.textContent = `Token exchange failed: ${error.message}`;
+        setTimeout(() => { window.location.href = 'dashboard.html'; }, 1000);
+    } catch (err) {
+        console.error('Token exchange error:', err);
+        errorEl.textContent = `Token exchange failed: ${err.message}`;
         errorEl.style.display = 'block';
-        setTimeout(() => window.location.href = 'index.html', 3000);
+        setTimeout(() => { window.location.href = 'index.html'; }, 3000);
     }
 }
 
-// ===== MOCK DATA GENERATION =====
-function generateMockUser() {
-    const archetypes = ['The Dreamer', 'The Party Animal', 'The Intellectual', 'The Romantic', 'The Explorer', 'The Nocturnal Listener'];
-    return {
-        id: 'user123',
-        display_name: 'Your Name',
-        email: 'user@spotify.com',
-        external_urls: { spotify: 'https://open.spotify.com/user/user123' },
-        followers: { total: 42 },
-        images: [{ url: 'https://via.placeholder.com/300' }],
-        archetype: archetypes[Math.floor(Math.random() * archetypes.length)]
-    };
-}
-
-function generateMockTracks() {
-    const artists = ['The Weeknd', 'Drake', 'Post Malone', 'Ariana Grande', 'Billie Eilish', 'Dua Lipa', 'Harry Styles', 'Olivia Rodrigo'];
-    const tracks = [];
-    for (let i = 1; i <= 10; i++) {
-        tracks.push({
-            id: `track${i}`,
-            name: `Top Track #${i}`,
-            artists: [{ name: artists[i % artists.length] }],
-            album: { images: [{ url: 'https://via.placeholder.com/200' }] },
-            popularity: 80 + Math.random() * 20,
-            duration_ms: 200000 + Math.random() * 100000,
-            explicit: Math.random() > 0.7,
-            play_count: Math.floor(100 + Math.random() * 500),
-            listening_hours: Math.floor(5 + Math.random() * 50),
-            mood: Math.random() * 100
-        });
-    }
-    return tracks;
-}
-
-function generateMockArtists() {
-    const artists = [];
-    const names = ['The Weeknd', 'Drake', 'Post Malone', 'Ariana Grande', 'Billie Eilish', 'Dua Lipa', 'Harry Styles', 'Olivia Rodrigo', 'Bad Bunny', 'Travis Scott', 'Kendrick Lamar', 'Tyler, the Creator'];
-    const genres = [['pop', 'r&b'], ['hip-hop', 'rap'], ['pop', 'edm'], ['pop'], ['alternative', 'indie'], ['electronic', 'pop']];
-    
-    for (let i = 0; i < 12; i++) {
-        artists.push({
-            id: `artist${i}`,
-            name: names[i],
-            popularity: 70 + Math.random() * 30,
-            genres: genres[i % genres.length],
-            followers: { total: Math.floor(1000000 + Math.random() * 50000000) },
-            images: [{ url: 'https://via.placeholder.com/200' }],
-            loyalty_score: 40 + Math.random() * 60,
-            listening_years: Math.floor(1 + Math.random() * 8),
-            compatibility: 70 + Math.random() * 30
-        });
-    }
-    return artists;
-}
-
-function generateMockAudioFeatures() {
-    return {
-        energy: 50 + Math.random() * 50,
-        danceability: 40 + Math.random() * 60,
-        acousticness: Math.random() * 50,
-        valence: 30 + Math.random() * 70,
-        liveness: Math.random() * 100,
-        speechiness: Math.random() * 40
-    };
-}
-
-function generateMockListeningHeatmap() {
-    const heatmap = [];
-    for (let hour = 0; hour < 24; hour++) {
-        heatmap.push({
-            hour: hour,
-            count: Math.floor(Math.random() * 100)
-        });
-    }
-    return heatmap;
-}
-
-function generateMockWeeklyHeatmap() {
-    const heatmap = [];
-    for (let week = 0; week < 52; week++) {
-        for (let day = 0; day < 7; day++) {
-            heatmap.push({
-                week, day,
-                value: Math.floor(Math.random() * 10)
-            });
-        }
-    }
-    return heatmap;
-}
-
-function generateMockMoodTimeline() {
-    const timeline = [];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    let valence = 50;
-    for (let i = 0; i < 12; i++) {
-        valence += (Math.random() - 0.5) * 30;
-        valence = Math.max(20, Math.min(80, valence));
-        timeline.push({
-            month: months[i],
-            valence: Math.round(valence)
-        });
-    }
-    return timeline;
-}
-
-function generateMockGenres() {
-    const genres = ['Pop', 'Hip-Hop', 'R&B', 'Electronic', 'Rock', 'Indie', 'Latin', 'K-Pop', 'Country', 'Soul'];
-    return genres.map((name, i) => ({
-        name,
-        hours: Math.floor(10 + Math.random() * 100),
-        tracks: Math.floor(10 + Math.random() * 50)
-    })).sort((a, b) => b.hours - a.hours);
-}
-
-function loadDemoData() {
-    localStorage.setItem('spotify_is_demo', 'true');
-    localStorage.setItem('spotify_demo_user', JSON.stringify(generateMockUser()));
-    localStorage.setItem('spotify_demo_tracks', JSON.stringify(generateMockTracks()));
-    localStorage.setItem('spotify_demo_artists', JSON.stringify(generateMockArtists()));
-    localStorage.setItem('spotify_demo_audio_features', JSON.stringify(generateMockAudioFeatures()));
-    localStorage.setItem('spotify_demo_listening_heatmap', JSON.stringify(generateMockListeningHeatmap()));
-    localStorage.setItem('spotify_demo_weekly_heatmap', JSON.stringify(generateMockWeeklyHeatmap()));
-    localStorage.setItem('spotify_demo_mood_timeline', JSON.stringify(generateMockMoodTimeline()));
-    localStorage.setItem('spotify_demo_genres', JSON.stringify(generateMockGenres()));
-}
-
-// ===== API CALLS =====
+// ===== API =====
 async function callSpotifyAPI(endpoint) {
     const token = localStorage.getItem('spotify_access_token');
     if (!token) throw new Error('No access token');
-    
     const response = await fetch(`https://api.spotify.com/v1${endpoint}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` }
     });
-    
     if (!response.ok) {
         if (response.status === 401) {
             localStorage.removeItem('spotify_access_token');
             window.location.href = 'index.html';
             throw new Error('Token expired');
         }
+        if (response.status === 204) return null;
         throw new Error(`API error: ${response.statusText}`);
     }
-    
     return response.json();
 }
 
-// ===== DASHBOARD INITIALIZATION =====
+async function fetchAudioFeatures(trackIds) {
+    if (!trackIds.length) return [];
+    const ids = trackIds.slice(0, 50).join(',');
+    const res = await callSpotifyAPI(`/audio-features?ids=${ids}`);
+    return res.audio_features.filter(Boolean);
+}
+
+function deriveFeaturesFromAudio(audioFeatures) {
+    if (!audioFeatures.length) {
+        return { energy: 50, danceability: 50, acousticness: 30, valence: 50, liveness: 20, speechiness: 10 };
+    }
+    const avg = (key) => {
+        const sum = audioFeatures.reduce((s, f) => s + (f[key] || 0), 0);
+        return Math.round((sum / audioFeatures.length) * 100);
+    };
+    return {
+        energy: avg('energy'),
+        danceability: avg('danceability'),
+        acousticness: avg('acousticness'),
+        valence: avg('valence'),
+        liveness: avg('liveness'),
+        speechiness: avg('speechiness')
+    };
+}
+
+function deriveListeningHeatmap(recentItems) {
+    const heatmap = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 }));
+    (recentItems || []).forEach((item) => {
+        if (!item.played_at) return;
+        const hour = new Date(item.played_at).getHours();
+        heatmap[hour].count += 1;
+    });
+    return heatmap;
+}
+
+function deriveWeeklyHeatmap(recentItems) {
+    const cells = [];
+    const now = new Date();
+    for (let week = 0; week < 12; week++) {
+        for (let day = 0; day < 7; day++) {
+            cells.push({ week, day, value: 0 });
+        }
+    }
+    (recentItems || []).forEach((item) => {
+        if (!item.played_at) return;
+        const played = new Date(item.played_at);
+        const daysAgo = Math.floor((now - played) / (1000 * 60 * 60 * 24));
+        if (daysAgo < 0 || daysAgo >= 84) return;
+        const week = Math.floor(daysAgo / 7);
+        const day = played.getDay();
+        const idx = week * 7 + day;
+        if (idx < cells.length) cells[idx].value += 1;
+    });
+    return cells;
+}
+
+function deriveMoodTimeline(recentItems, audioFeatures, tracks) {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const byMonth = {};
+    const featureMap = {};
+    (audioFeatures || []).forEach((f) => { if (f) featureMap[f.id] = f; });
+
+    (recentItems || []).forEach((item) => {
+        if (!item.played_at || !item.track) return;
+        const d = new Date(item.played_at);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        const label = monthNames[d.getMonth()];
+        if (!byMonth[key]) byMonth[key] = { month: label, valences: [] };
+        const feat = featureMap[item.track.id];
+        if (feat) byMonth[key].valences.push(feat.valence * 100);
+    });
+
+    let entries = Object.values(byMonth)
+        .map((m) => ({
+            month: m.month,
+            valence: m.valences.length
+                ? Math.round(m.valences.reduce((a, b) => a + b, 0) / m.valences.length)
+                : 50
+        }))
+        .slice(-12);
+
+    if (entries.length < 3 && tracks.length) {
+        entries = tracks.slice(0, 12).map((t, i) => ({
+            month: `#${i + 1}`,
+            valence: t.popularity || 50
+        }));
+    }
+    return entries.length ? entries : monthNames.slice(0, 6).map((month) => ({ month, valence: 50 }));
+}
+
+function deriveGenresFromArtists(artists) {
+    const genreScores = {};
+    artists.forEach((artist, i) => {
+        const weight = artists.length - i;
+        (artist.genres || []).forEach((genre) => {
+            const name = genre.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            if (!genreScores[name]) genreScores[name] = { name, hours: 0, tracks: 0 };
+            genreScores[name].hours += weight * 2;
+            genreScores[name].tracks += weight;
+        });
+    });
+    return Object.values(genreScores).sort((a, b) => b.hours - a.hours);
+}
+
+function deriveArchetype(features) {
+    const { energy, valence, danceability, acousticness } = features;
+    if (energy > 70 && danceability > 65) return { name: 'The Party Animal', emoji: '🎉', desc: 'High-energy tracks dominate your rotation.' };
+    if (valence > 65 && acousticness < 40) return { name: 'The Optimist', emoji: '☀️', desc: 'Upbeat, feel-good music is your go-to.' };
+    if (acousticness > 55) return { name: 'The Dreamer', emoji: '🌙', desc: 'You lean toward softer, acoustic sounds.' };
+    if (energy < 45 && valence < 45) return { name: 'The Nocturnal Listener', emoji: '🦉', desc: 'Mellow and introspective vibes define your taste.' };
+    if (danceability > 60) return { name: 'The Groove Seeker', emoji: '💃', desc: 'Rhythm and danceability drive your picks.' };
+    return { name: 'The Explorer', emoji: '🧭', desc: 'Eclectic taste across moods and genres.' };
+}
+
+function formatDuration(ms) {
+    const min = Math.floor((ms || 0) / 60000);
+    const sec = Math.floor(((ms || 0) % 60000) / 1000);
+    return `${min}:${String(sec).padStart(2, '0')}`;
+}
+
+function getPositionChange(trackId, newRank, timeRange) {
+    const key = `spotify_track_ranks_${timeRange}`;
+    const prev = JSON.parse(localStorage.getItem(key) || '{}');
+    const prevRank = prev[trackId];
+    if (prevRank === undefined) return { type: 'new', label: 'NEW', className: 'change-new' };
+    const diff = prevRank - newRank;
+    if (diff > 0) return { type: 'up', label: `↑${diff}`, className: 'change-up' };
+    if (diff < 0) return { type: 'down', label: `↓${Math.abs(diff)}`, className: 'change-down' };
+    return { type: 'same', label: '—', className: 'change-same' };
+}
+
+function saveTrackRanks(tracks, timeRange) {
+    const ranks = {};
+    tracks.forEach((t, i) => { ranks[t.id] = i + 1; });
+    localStorage.setItem(`spotify_track_ranks_${timeRange}`, JSON.stringify(ranks));
+}
+
+// ===== ANIMATIONS =====
+function animateCounter(element, target, duration = 1200) {
+    const num = typeof target === 'number' ? target : parseInt(String(target).replace(/[^\d]/g, ''), 10) || 0;
+    const suffix = String(target).replace(/[\d,]/g, '');
+    const start = performance.now();
+    function frame(now) {
+        const progress = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const value = Math.round(num * eased);
+        element.textContent = value.toLocaleString() + suffix;
+        if (progress < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+}
+
+function staggerSection(sectionEl) {
+    if (!sectionEl) return;
+    const items = sectionEl.querySelectorAll('.stagger-item');
+    items.forEach((el, i) => {
+        el.style.animationDelay = `${i * 60}ms`;
+        el.classList.remove('stagger-visible');
+        void el.offsetWidth;
+        el.classList.add('stagger-visible');
+    });
+    sectionEl.querySelectorAll('.popularity-bar').forEach((bar, i) => {
+        const w = bar.dataset.width;
+        bar.style.width = '0';
+        setTimeout(() => { bar.style.width = w; }, 100 + i * 60);
+    });
+}
+
+// ===== SKELETONS =====
+function showSkeletons() {
+    document.getElementById('userName').textContent = 'Loading...';
+    document.getElementById('topStats').innerHTML = Array(4).fill(0).map(() => `
+        <div class="stat-item">
+            <div class="skeleton skeleton-label"></div>
+            <div class="skeleton skeleton-value"></div>
+        </div>
+    `).join('');
+    document.getElementById('tracksGrid').innerHTML = Array(8).fill(0).map(() => `
+        <div class="track-row skeleton-row">
+            <div class="skeleton skeleton-rank"></div>
+            <div class="skeleton skeleton-art"></div>
+            <div class="skeleton skeleton-info"></div>
+        </div>
+    `).join('');
+    document.getElementById('artistsGrid').innerHTML = Array(6).fill(0).map(() => `
+        <div class="artist-card skeleton-card"><div class="skeleton" style="width:100%;height:100%"></div></div>
+    `).join('');
+    ['radarChart', 'listeningClock', 'heatmapGrid', 'genreBubbles', 'moodChart', 'reportCard'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<div class="skeleton skeleton-block"></div>';
+    });
+}
+
+// ===== DASHBOARD INIT =====
 async function initDashboard() {
-    // Check authentication
-    const isDemo = localStorage.getItem('spotify_is_demo') === 'true';
-    const hasToken = !!localStorage.getItem('spotify_access_token');
-    
-    if (!isDemo && !hasToken) {
+    if (!localStorage.getItem('spotify_access_token')) {
         window.location.href = 'index.html';
         return;
     }
-    
+
+    showSkeletons();
+    setupTabNavigation();
+    setupFilters();
+    setupLogout();
+
     try {
-        // Load data
-        let user, tracks, artists, features, listeningHeatmap, weeklyHeatmap, moodTimeline, genres;
-        
-        if (isDemo) {
-            user = JSON.parse(localStorage.getItem('spotify_demo_user') || JSON.stringify(generateMockUser()));
-            tracks = JSON.parse(localStorage.getItem('spotify_demo_tracks') || JSON.stringify(generateMockTracks()));
-            artists = JSON.parse(localStorage.getItem('spotify_demo_artists') || JSON.stringify(generateMockArtists()));
-            features = JSON.parse(localStorage.getItem('spotify_demo_audio_features') || JSON.stringify(generateMockAudioFeatures()));
-            listeningHeatmap = JSON.parse(localStorage.getItem('spotify_demo_listening_heatmap') || JSON.stringify(generateMockListeningHeatmap()));
-            weeklyHeatmap = JSON.parse(localStorage.getItem('spotify_demo_weekly_heatmap') || JSON.stringify(generateMockWeeklyHeatmap()));
-            moodTimeline = JSON.parse(localStorage.getItem('spotify_demo_mood_timeline') || JSON.stringify(generateMockMoodTimeline()));
-            genres = JSON.parse(localStorage.getItem('spotify_demo_genres') || JSON.stringify(generateMockGenres()));
-        } else {
-            try {
-                user = await callSpotifyAPI('/me');
-            } catch {
-                user = generateMockUser();
-            }
-            try {
-                const tracksRes = await callSpotifyAPI('/me/top/tracks?limit=10&time_range=medium_term');
-                tracks = tracksRes.items;
-            } catch {
-                tracks = generateMockTracks();
-            }
-            try {
-                const artistsRes = await callSpotifyAPI('/me/top/artists?limit=12');
-                artists = artistsRes.items;
-            } catch {
-                artists = generateMockArtists();
-            }
-            features = generateMockAudioFeatures();
-            listeningHeatmap = generateMockListeningHeatmap();
-            weeklyHeatmap = generateMockWeeklyHeatmap();
-            moodTimeline = generateMockMoodTimeline();
-            genres = generateMockGenres();
-        }
-        
-        // Store data globally for access in other functions
-        window.appData = { user, tracks, artists, features, listeningHeatmap, weeklyHeatmap, moodTimeline, genres };
-        
-        // Render UI
+        const [user, tracksRes, artistsRes, recentRes, playingRes] = await Promise.all([
+            callSpotifyAPI('/me'),
+            callSpotifyAPI(`/me/top/tracks?limit=50&time_range=${currentTimeRange}`),
+            callSpotifyAPI('/me/top/artists?limit=12&time_range=medium_term'),
+            callSpotifyAPI('/me/player/recently-played?limit=50').catch(() => ({ items: [] })),
+            callSpotifyAPI('/me/player/currently-playing').catch(() => null)
+        ]);
+
+        const tracks = tracksRes.items || [];
+        const artists = artistsRes.items || [];
+        const recentItems = recentRes?.items || [];
+        const trackIds = tracks.map((t) => t.id);
+        const audioFeatures = await fetchAudioFeatures(trackIds).catch(() => []);
+
+        const features = deriveFeaturesFromAudio(audioFeatures);
+        const listeningHeatmap = deriveListeningHeatmap(recentItems);
+        const weeklyHeatmap = deriveWeeklyHeatmap(recentItems);
+        const moodTimeline = deriveMoodTimeline(recentItems, audioFeatures, tracks);
+        const genres = deriveGenresFromArtists(artists);
+        const archetype = deriveArchetype(features);
+
+        window.appData = {
+            user, tracks, artists, features, listeningHeatmap, weeklyHeatmap,
+            moodTimeline, genres, archetype, audioFeatures, recentItems, playingRes
+        };
+
         renderUserInfo(user);
-        renderHero(user, tracks, artists);
-        renderTracks(tracks);
+        renderHero(user, tracks, artists, playingRes);
+        renderTracks(tracks, currentTimeRange);
         renderArtists(artists);
-        renderProfile(features);
+        renderProfile(features, archetype);
         renderListening(listeningHeatmap, weeklyHeatmap);
         renderGenres(genres);
         renderMood(moodTimeline);
-        renderReport(user, tracks, artists, features);
-        
-        // Setup event listeners
-        setupTabNavigation();
-        setupFilters();
-        setupLogout();
-        
+        renderReport(user, tracks, artists, features, archetype);
+
+        const activeSection = document.querySelector('.section.active');
+        staggerSection(activeSection);
     } catch (error) {
         console.error('Dashboard initialization error:', error);
-        alert('Error loading dashboard. Please try again.');
+        alert('Error loading dashboard: ' + error.message);
         window.location.href = 'index.html';
     }
 }
 
-// ===== UI RENDERING =====
+// ===== RENDERING =====
 function renderUserInfo(user) {
     document.getElementById('userName').textContent = user.display_name || 'User';
 }
 
-function renderHero(user, tracks, artists) {
+function renderHero(user, tracks, artists, playingRes) {
     const profileImg = document.getElementById('profileImage');
-    if (user.images && user.images[0]) {
-        profileImg.style.backgroundImage = `url(${user.images[0].url})`;
-    }
-    
-    document.getElementById('profileName').textContent = user.display_name || 'Your Name';
-    document.getElementById('profileEmail').textContent = user.email || 'user@spotify.com';
-    document.getElementById('profileArchetype').textContent = user.archetype || 'The Explorer';
-    
-    const statsHtml = `
-        <div class="stat-item">
-            <span class="stat-label">Top Track:</span>
-            <span class="stat-value">${tracks[0]?.name || 'N/A'}</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-label">Top Artist:</span>
-            <span class="stat-value">${artists[0]?.name || 'N/A'}</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-label">Followers:</span>
-            <span class="stat-value">${(user.followers?.total || 0).toLocaleString()}</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-label">Artists Followed:</span>
-            <span class="stat-value">${artists.length}</span>
-        </div>
-    `;
-    document.getElementById('topStats').innerHTML = statsHtml;
-}
+    if (user.images?.[0]) profileImg.style.backgroundImage = `url(${user.images[0].url})`;
 
-function renderTracks(tracks) {
-    const grid = document.getElementById('tracksGrid');
-    const html = tracks.map((track, i) => `
-        <div class="track-card">
-            <div class="track-rank">#${i + 1}</div>
-            <div class="track-image" style="background-image: url(${track.album?.images[0]?.url || 'https://via.placeholder.com/200'})"></div>
-            <div class="track-info">
-                <div class="track-name">${track.name}</div>
-                <div class="track-artist">${track.artists[0]?.name || 'Unknown'}</div>
-                <div class="track-stats">
-                    <span>🎵 ${track.play_count || Math.floor(Math.random() * 500)}</span>
-                    <span>⏱️ ${Math.floor((track.duration_ms || 200000) / 60000)}m</span>
-                </div>
-            </div>
+    document.getElementById('profileName').textContent = user.display_name || 'Your Name';
+    document.getElementById('profileEmail').textContent = user.email || 'Connected via Spotify';
+    const archetype = window.appData?.archetype || deriveArchetype(window.appData?.features || {});
+    document.getElementById('profileArchetype').textContent = archetype.name;
+
+    const stats = [
+        { label: 'Top Track', value: tracks[0]?.name || 'N/A', animate: false },
+        { label: 'Top Artist', value: artists[0]?.name || 'N/A', animate: false },
+        { label: 'Followers', value: user.followers?.total || 0, animate: true },
+        { label: 'Top Artists', value: artists.length, animate: true }
+    ];
+
+    document.getElementById('topStats').innerHTML = stats.map((s) => `
+        <div class="stat-item stagger-item">
+            <span class="stat-label">${s.label}</span>
+            <span class="stat-value" data-animate="${s.animate}" data-target="${s.animate ? s.value : ''}">${s.animate ? '0' : s.value}</span>
         </div>
     `).join('');
-    grid.innerHTML = html;
+
+    document.querySelectorAll('#topStats .stat-value[data-animate="true"]').forEach((el) => {
+        animateCounter(el, parseInt(el.dataset.target, 10) || 0);
+    });
+
+    const playingEl = document.getElementById('currentlyPlaying');
+    if (playingRes?.item) {
+        const t = playingRes.item;
+        playingEl.innerHTML = `
+            <div class="now-playing stagger-item">
+                <div class="now-playing-art" style="background-image:url(${t.album?.images?.[0]?.url || ''})"></div>
+                <div>
+                    <div class="now-playing-title">${t.name}</div>
+                    <div class="now-playing-artist">${t.artists?.[0]?.name || ''}</div>
+                </div>
+            </div>
+        `;
+    } else {
+        playingEl.innerHTML = `<p class="muted-text">Nothing playing right now — press play on Spotify!</p>`;
+    }
+}
+
+function renderTracks(tracks, timeRange = currentTimeRange) {
+    const grid = document.getElementById('tracksGrid');
+    const sorted = [...tracks].sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+    const maxPop = sorted[0]?.popularity || 100;
+
+    const html = sorted.map((track, i) => {
+        const pop = track.popularity || 0;
+        const barPct = maxPop ? (pop / maxPop) * 100 : 0;
+        const rank = String(i + 1).padStart(2, '0');
+        const change = getPositionChange(track.id, i + 1, timeRange);
+        const img = track.album?.images?.[0]?.url || '';
+
+        return `
+            <div class="track-row stagger-item" data-rank="${i + 1}">
+                <div class="track-rank-large">${rank}</div>
+                <div class="track-art" style="background-image:url('${img}')"></div>
+                <div class="track-details">
+                    <div class="track-title-row">
+                        <span class="track-name">${escapeHtml(track.name)}</span>
+                        <span class="track-pop-score" title="Spotify popularity score">${pop}<span class="pop-unit">/100</span></span>
+                    </div>
+                    <div class="track-artist">${escapeHtml(track.artists?.[0]?.name || 'Unknown')}</div>
+                    <div class="track-bar-wrap">
+                        <div class="popularity-bar" data-width="${barPct}%" style="width:0"></div>
+                    </div>
+                    <div class="track-footer">
+                        <span class="track-duration">${formatDuration(track.duration_ms)}</span>
+                        <span class="position-change ${change.className}">${change.label}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    grid.innerHTML = html || '<p class="muted-text">No tracks found for this time range.</p>';
+    saveTrackRanks(sorted, timeRange);
+
+    requestAnimationFrame(() => {
+        grid.querySelectorAll('.popularity-bar').forEach((bar, i) => {
+            setTimeout(() => { bar.style.width = bar.dataset.width; }, 150 + i * 60);
+        });
+    });
 }
 
 function renderArtists(artists) {
     const grid = document.getElementById('artistsGrid');
-    const html = artists.map((artist, i) => `
-        <div class="artist-card">
-            <div class="artist-rank">#${i + 1}</div>
-            <div class="artist-image" style="background-image: url(${artist.images[0]?.url || 'https://via.placeholder.com/200'})"></div>
-            <div class="artist-overlay">
-                <div class="artist-name">${artist.name}</div>
-                <div class="artist-genres">${(artist.genres || ['Pop']).slice(0, 2).join(', ')}</div>
-                <div class="artist-stats">
-                    <span>📊 ${(artist.compatibility || Math.floor(70 + Math.random() * 30))}% Match</span>
-                    <span>⭐ ${(artist.popularity || Math.floor(70 + Math.random() * 30))}</span>
+    grid.innerHTML = artists.map((artist, i) => {
+        const rank = String(i + 1).padStart(2, '0');
+        const img = artist.images?.[0]?.url || '';
+        const genreStr = (artist.genres || []).slice(0, 2).join(', ') || 'Various';
+        return `
+            <div class="artist-card stagger-item">
+                <div class="artist-rank">${rank}</div>
+                <div class="artist-image-wrap">
+                    <div class="artist-image" style="background-image:url('${img}')"></div>
+                </div>
+                <div class="artist-overlay">
+                    <div class="artist-name">${escapeHtml(artist.name)}</div>
+                    <div class="artist-genres">${escapeHtml(genreStr)}</div>
+                    <div class="artist-stats">
+                        <div class="stat-row">
+                            <span class="stat-label-sm">Followers</span>
+                            <span class="stat-value-sm">${(artist.followers?.total || 0).toLocaleString()}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label-sm">Popularity</span>
+                            <span class="stat-value-sm">${artist.popularity || 0}/100</span>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    `).join('');
-    grid.innerHTML = html;
+        `;
+    }).join('');
 }
 
-function renderProfile(features) {
-    // Render radar chart using Chart.js
+function renderProfile(features, archetype) {
+    const radarEl = document.getElementById('radarChart');
+    radarEl.innerHTML = '';
     const ctx = document.createElement('canvas');
-    document.getElementById('radarChart').appendChild(ctx);
-    
-    new Chart(ctx, {
+    radarEl.appendChild(ctx);
+
+    if (radarChartInstance) radarChartInstance.destroy();
+    radarChartInstance = new Chart(ctx, {
         type: 'radar',
         data: {
             labels: ['Energy', 'Danceability', 'Acousticness', 'Valence', 'Liveness', 'Speechiness'],
             datasets: [{
                 label: 'Your Audio Profile',
-                data: [
-                    features.energy,
-                    features.danceability,
-                    features.acousticness,
-                    features.valence,
-                    features.liveness,
-                    features.speechiness
-                ],
+                data: [features.energy, features.danceability, features.acousticness, features.valence, features.liveness, features.speechiness],
                 borderColor: '#1db954',
-                backgroundColor: 'rgba(29, 185, 84, 0.2)',
+                backgroundColor: 'rgba(29, 185, 84, 0.25)',
+                pointBackgroundColor: '#1db954',
                 fill: true
             }]
         },
@@ -444,75 +526,82 @@ function renderProfile(features) {
             responsive: true,
             scales: {
                 r: {
-                    max: 100,
-                    ticks: { color: '#888' },
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                    min: 0, max: 100,
+                    ticks: { color: '#a3a3a3', backdropColor: 'transparent' },
+                    grid: { color: 'rgba(255,255,255,0.12)' },
+                    pointLabels: { color: '#e0e0e0', font: { size: 12 } }
                 }
             },
-            plugins: {
-                legend: { labels: { color: '#fff' } }
-            }
+            plugins: { legend: { labels: { color: '#fff' } } }
         }
     });
-    
+
     document.getElementById('archetypeCard').innerHTML = `
-        <div class="emoji-large">🎭</div>
-        <p class="archetype-name">${window.appData.user.archetype || 'The Explorer'}</p>
-        <p class="archetype-description">Your listening profile reveals a unique taste that blends multiple genres.</p>
+        <div class="emoji-large">${archetype.emoji}</div>
+        <p class="archetype-name">${archetype.name}</p>
+        <p class="archetype-description">${archetype.desc}</p>
     `;
-    
+
     const traits = [
-        { name: 'Energetic', value: Math.round(features.energy) },
-        { name: 'Danceable', value: Math.round(features.danceability) },
-        { name: 'Vocal-Forward', value: Math.round(features.speechiness) }
+        { name: 'Energetic', value: features.energy },
+        { name: 'Danceable', value: features.danceability },
+        { name: 'Happy', value: features.valence },
+        { name: 'Acoustic', value: features.acousticness }
     ];
-    document.getElementById('traitsCard').innerHTML = traits.map(t => `
-        <div class="trait-bar">
-            <span>${t.name}</span>
-            <div class="bar"><div class="bar-fill" style="width: ${t.value}%; background: #1db954;"></div></div>
-            <span>${t.value}%</span>
+    document.getElementById('traitsCard').innerHTML = traits.map((t) => `
+        <div class="trait-bar stagger-item">
+            <span class="trait-name">${t.name}</span>
+            <div class="bar"><div class="bar-fill" style="width:${t.value}%"></div></div>
+            <span class="trait-pct">${t.value}%</span>
         </div>
     `).join('');
 }
 
 function renderListening(listeningHeatmap, weeklyHeatmap) {
-    const maxHours = Math.max(...listeningHeatmap.map(h => h.count));
-    
-    // Render 24-hour clock
-    let clockSvg = '<svg viewBox="0 0 400 400" style="width: 100%; height: 100%;">';
+    const maxHours = Math.max(...listeningHeatmap.map((h) => h.count), 1);
+    let clockSvg = '<svg viewBox="0 0 400 400" class="clock-svg">';
+    clockSvg += '<circle cx="200" cy="200" r="140" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2"/>';
     listeningHeatmap.forEach((data, i) => {
         const angle = (i / 24) * Math.PI * 2 - Math.PI / 2;
         const intensity = data.count / maxHours;
-        const radius = 150 + (intensity * 50);
+        const radius = 100 + intensity * 60;
         const x = 200 + Math.cos(angle) * radius;
         const y = 200 + Math.sin(angle) * radius;
-        
-        const color = `rgba(29, 185, 84, ${0.3 + intensity * 0.7})`;
-        clockSvg += `<circle cx="${x}" cy="${y}" r="12" fill="${color}"/>`;
-        clockSvg += `<text x="${x}" y="${y}" text-anchor="middle" fill="#fff" font-size="10">${i}</text>`;
+        const r = 6 + intensity * 14;
+        const color = `rgba(29, 185, 84, ${0.35 + intensity * 0.65})`;
+        clockSvg += `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}"/>`;
+        const lx = 200 + Math.cos(angle) * 165;
+        const ly = 200 + Math.sin(angle) * 165;
+        clockSvg += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" fill="#c4c4c4" font-size="11">${i}</text>`;
     });
     clockSvg += '</svg>';
     document.getElementById('listeningClock').innerHTML = clockSvg;
-    
-    // Render heatmap
-    const maxWeekly = Math.max(...weeklyHeatmap.map(h => h.value));
-    const heatmapHtml = weeklyHeatmap.map(cell => {
+
+    const maxWeekly = Math.max(...weeklyHeatmap.map((h) => h.value), 1);
+    const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    let heatHtml = '<div class="heatmap-labels">' + dayLabels.map((d) => `<span>${d}</span>`).join('') + '</div>';
+    heatHtml += '<div class="heatmap-cells">';
+    weeklyHeatmap.forEach((cell) => {
         const intensity = cell.value / maxWeekly;
-        const color = `rgba(29, 185, 84, ${intensity * 0.8})`;
-        return `<div class="heatmap-cell" style="background: ${color};" title="Week ${cell.week + 1}, Day ${cell.day + 1}"></div>`;
-    }).join('');
-    document.getElementById('heatmapGrid').innerHTML = heatmapHtml;
+        heatHtml += `<div class="heatmap-cell" style="background:rgba(29,185,84,${0.15 + intensity * 0.85})" title="${cell.value} plays"></div>`;
+    });
+    heatHtml += '</div>';
+    document.getElementById('heatmapGrid').innerHTML = heatHtml;
 }
 
 function renderGenres(genres) {
-    const maxHours = Math.max(...genres.map(g => g.hours));
-    const html = genres.slice(0, 8).map(genre => {
-        const size = (genre.hours / maxHours) * 150 + 80;
+    if (!genres.length) {
+        document.getElementById('genreBubbles').innerHTML = '<p class="muted-text">No genre data from your top artists yet.</p>';
+        return;
+    }
+    const maxHours = Math.max(...genres.map((g) => g.hours), 1);
+    const html = genres.slice(0, 10).map((genre, i) => {
+        const size = (genre.hours / maxHours) * 120 + 90;
         return `
-            <div class="genre-bubble" style="width: ${size}px; height: ${size}px;">
+            <div class="genre-bubble stagger-item" style="width:${size}px;height:${size}px">
                 <div class="bubble-content">
-                    <div class="bubble-name">${genre.name}</div>
-                    <div class="bubble-hours">${genre.hours}h</div>
+                    <div class="bubble-name">${escapeHtml(genre.name)}</div>
+                    <div class="bubble-hours">${genre.tracks} weighted</div>
                 </div>
             </div>
         `;
@@ -521,122 +610,144 @@ function renderGenres(genres) {
 }
 
 function renderMood(moodTimeline) {
+    const container = document.getElementById('moodChart');
+    container.innerHTML = '';
     const canvas = document.createElement('canvas');
-    document.getElementById('moodChart').appendChild(canvas);
-    
-    new Chart(canvas, {
+    container.appendChild(canvas);
+    if (moodChartInstance) moodChartInstance.destroy();
+    moodChartInstance = new Chart(canvas, {
         type: 'line',
         data: {
-            labels: moodTimeline.map(m => m.month),
+            labels: moodTimeline.map((m) => m.month),
             datasets: [{
-                label: 'Monthly Valence (Happiness)',
-                data: moodTimeline.map(m => m.valence),
+                label: 'Valence (Positivity)',
+                data: moodTimeline.map((m) => m.valence),
                 borderColor: '#f59e0b',
-                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                backgroundColor: 'rgba(245, 158, 11, 0.15)',
                 fill: true,
-                tension: 0.4
+                tension: 0.4,
+                pointRadius: 5,
+                pointBackgroundColor: '#f59e0b'
             }]
         },
         options: {
             responsive: true,
             scales: {
-                y: {
-                    max: 100,
-                    ticks: { color: '#888' },
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                },
-                x: {
-                    ticks: { color: '#888' },
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                }
+                y: { min: 0, max: 100, ticks: { color: '#a3a3a3' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                x: { ticks: { color: '#a3a3a3' }, grid: { color: 'rgba(255,255,255,0.08)' } }
             },
-            plugins: {
-                legend: { labels: { color: '#fff' } }
-            }
+            plugins: { legend: { labels: { color: '#fff' } } }
         }
     });
 }
 
-function renderReport(user, tracks, artists, features) {
-    const reportHtml = `
-        <div class="report-card-content">
+function renderReport(user, tracks, artists, features, archetype) {
+    const year = new Date().getFullYear();
+    document.getElementById('reportCard').innerHTML = `
+        <div class="report-card-content" id="reportCardInner">
             <div class="report-header">
-                <h3>Your Spotify 2024</h3>
+                <h3>${escapeHtml(user.display_name || 'Your')} Spotify ${year}</h3>
+                <p class="report-sub">${archetype.emoji} ${archetype.name}</p>
             </div>
             <div class="report-body">
-                <div class="report-stat">
-                    <span class="report-label">Top Track:</span>
-                    <span class="report-value">${tracks[0]?.name || 'N/A'}</span>
-                </div>
-                <div class="report-stat">
-                    <span class="report-label">Top Artist:</span>
-                    <span class="report-value">${artists[0]?.name || 'N/A'}</span>
-                </div>
-                <div class="report-stat">
-                    <span class="report-label">Vibe:</span>
-                    <span class="report-value">${Math.round(features.valence)}% Happy</span>
-                </div>
-                <div class="report-stat">
-                    <span class="report-label">Energy:</span>
-                    <span class="report-value">${Math.round(features.energy)}% Energetic</span>
-                </div>
+                <div class="report-stat"><span class="report-label">Top Track</span><span class="report-value">${escapeHtml(tracks[0]?.name || 'N/A')}</span></div>
+                <div class="report-stat"><span class="report-label">Top Artist</span><span class="report-value">${escapeHtml(artists[0]?.name || 'N/A')}</span></div>
+                <div class="report-stat"><span class="report-label">Happiness</span><span class="report-value">${features.valence}%</span></div>
+                <div class="report-stat"><span class="report-label">Energy</span><span class="report-value">${features.energy}%</span></div>
+                <div class="report-stat"><span class="report-label">Danceability</span><span class="report-value">${features.danceability}%</span></div>
             </div>
         </div>
     `;
-    document.getElementById('reportCard').innerHTML = reportHtml;
-    
-    // Setup report buttons
+
+    const dlBtn = document.getElementById('reportDownloadBtn');
+    const cpBtn = document.getElementById('reportCopyBtn');
+    dlBtn.replaceWith(dlBtn.cloneNode(true));
+    cpBtn.replaceWith(cpBtn.cloneNode(true));
     document.getElementById('reportDownloadBtn').addEventListener('click', downloadReportPNG);
     document.getElementById('reportCopyBtn').addEventListener('click', copyReportText);
 }
 
-// ===== EVENT LISTENERS =====
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// ===== EVENTS =====
 function setupTabNavigation() {
-    document.querySelectorAll('.nav-tab').forEach(tab => {
+    document.querySelectorAll('.nav-tab').forEach((tab) => {
         tab.addEventListener('click', () => {
-            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            
+            if (tab.classList.contains('active')) return;
+            const current = document.querySelector('.section.active');
+            const target = document.getElementById(tab.dataset.section);
+            if (!target) return;
+
+            document.querySelectorAll('.nav-tab').forEach((t) => t.classList.remove('active'));
             tab.classList.add('active');
-            const section = document.getElementById(tab.dataset.section);
-            if (section) section.classList.add('active');
+
+            const showTarget = () => {
+                document.querySelectorAll('.section').forEach((s) => {
+                    s.classList.remove('active', 'section-leaving', 'section-entering');
+                });
+                target.classList.add('active', 'section-entering');
+                setTimeout(() => {
+                    target.classList.remove('section-entering');
+                    staggerSection(target);
+                }, 200);
+            };
+
+            if (current && current !== target) {
+                current.classList.add('section-leaving');
+                setTimeout(showTarget, 150);
+            } else {
+                showTarget();
+            }
         });
     });
 }
 
 function setupFilters() {
-    document.querySelectorAll('.btn-filter').forEach(btn => {
+    document.querySelectorAll('.btn-filter').forEach((btn) => {
         btn.addEventListener('click', async () => {
-            document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.btn-filter').forEach((b) => b.classList.remove('active'));
             btn.classList.add('active');
-            // Could reload tracks here with different time range
+            currentTimeRange = btn.dataset.range;
+            const grid = document.getElementById('tracksGrid');
+            grid.innerHTML = Array(5).fill('<div class="track-row skeleton-row"><div class="skeleton skeleton-rank"></div><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-info"></div></div>').join('');
+            try {
+                const res = await callSpotifyAPI(`/me/top/tracks?limit=50&time_range=${currentTimeRange}`);
+                window.appData.tracks = res.items;
+                renderTracks(res.items, currentTimeRange);
+                staggerSection(document.getElementById('tracks'));
+            } catch (e) {
+                console.error(e);
+            }
         });
     });
 }
 
 function setupLogout() {
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
-        localStorage.removeItem('spotify_access_token');
-        localStorage.removeItem('spotify_token_expires_at');
-        localStorage.removeItem('spotify_is_demo');
+        ['spotify_access_token', 'spotify_token_expires_at', 'spotify_code_verifier'].forEach((k) => localStorage.removeItem(k));
         window.location.href = 'index.html';
     });
 }
 
-// ===== REPORT FUNCTIONS =====
 function downloadReportPNG() {
-    const reportCard = document.getElementById('reportCard');
-    html2canvas(reportCard, { backgroundColor: '#0a0a0a' }).then(canvas => {
+    const card = document.getElementById('reportCardInner') || document.getElementById('reportCard');
+    if (typeof html2canvas === 'undefined') {
+        alert('Download unavailable — reload the page.');
+        return;
+    }
+    html2canvas(card, { backgroundColor: '#0a0a0a', scale: 2 }).then((canvas) => {
         const link = document.createElement('a');
         link.href = canvas.toDataURL('image/png');
-        link.download = 'spotify-stats.png';
+        link.download = 'spotify-stats-report.png';
         link.click();
     });
 }
 
 function copyReportText() {
     const text = document.getElementById('reportCard').innerText;
-    navigator.clipboard.writeText(text).then(() => {
-        alert('Report copied to clipboard!');
-    });
+    navigator.clipboard.writeText(text).then(() => alert('Report copied to clipboard!'));
 }

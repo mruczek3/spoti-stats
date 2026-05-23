@@ -40,9 +40,6 @@
                     </div>
                 </div>
 
-                <button id="demoBtn" class="btn-demo">
-                    👀 View Demo (No Login)
-                </button>
             </div>
 
             <div class="login-footer">
@@ -55,10 +52,6 @@
     <script src="assets/app.js"></script>
     <script>
         document.getElementById('loginBtn').addEventListener('click', initiateSpotifyLogin);
-        document.getElementById('demoBtn').addEventListener('click', () => {
-            localStorage.setItem('spotify_is_demo', 'true');
-            window.location.href = 'dashboard.html';
-        });
     </script>
 </body>
 </html>

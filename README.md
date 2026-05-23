@@ -31,11 +31,6 @@ See your music in 8 stunning dashboards:
 3. Log in to your Spotify account
 4. Grant permission - See your stats instantly!
 
-### Option 2: Try Demo Mode
-1. Visit the [Spotify Stats Dashboard](https://mruczek3.github.io/spotify-stats/)
-2. Click **"👀 View Demo"**
-3. Explore with sample data (no Spotify account needed)
-
 ---
 
 ## 🎨 Design
@@ -53,7 +48,7 @@ Built with a **dark glassmorphism aesthetic** featuring:
 ✅ **Your data stays yours**
 - All processing happens in your browser
 - No data sent to external servers
-- Works completely offline (demo mode)
+- All data fetched directly from Spotify
 - PKCE OAuth 2.0 for secure authentication
 
 ---
