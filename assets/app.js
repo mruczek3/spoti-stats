@@ -1,9 +1,14 @@
 // ===== SPOTIFY OAUTH PKCE FLOW =====
 const CLIENT_ID = 'fa5e8ae611124119aee7fd0ba733228c';
-const REDIRECT_URI = (() => {
-    const path = 'callback.html';
-    return `${window.location.origin}${window.location.pathname.replace(/\/[^/]*$/, '')}/${path}`;
-})();
+function getAppBasePath() {
+    const path = window.location.pathname;
+    const marker = '/spotifystats';
+    const idx = path.indexOf(marker);
+    if (idx >= 0) return path.slice(0, idx + marker.length);
+    return path.replace(/\/[^/]*$/, '') || '';
+}
+
+const REDIRECT_URI = `${window.location.origin}${getAppBasePath()}/callback.html`;
 const SCOPES = [
     'user-read-private',
     'user-read-email',
