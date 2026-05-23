@@ -312,12 +312,14 @@ body {
 }
 
 .section-summary {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    padding: 12px 18px;
-    background: rgba(29, 185, 84, 0.08);
-    border-left: 3px solid var(--primary);
-    border-radius: 0 8px 8px 0;
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    padding: 14px 20px;
+    background: rgba(29, 185, 84, 0.12);
+    border: 1px solid rgba(29, 185, 84, 0.25);
+    border-left: 4px solid var(--primary);
+    border-radius: 0 10px 10px 0;
+    margin-bottom: 8px;
 }
 
 .empty-state {
@@ -490,14 +492,14 @@ body {
     display: flex;
     align-items: center;
     gap: 20px;
-    padding: 20px 24px;
-    background: var(--card-bg);
+    padding: 22px 26px;
+    background: linear-gradient(135deg, rgba(25, 25, 32, 0.95), rgba(18, 18, 24, 0.9));
     border: 1px solid var(--border-color);
-    border-radius: 12px;
-    margin-bottom: 12px;
+    border-radius: 14px;
+    margin-bottom: 14px;
     transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
     cursor: default;
-    border-left: 3px solid transparent;
+    border-left: 4px solid transparent;
 }
 
 .media-row:hover {
@@ -697,12 +699,24 @@ body {
 }
 
 .stagger-item {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.media-list .stagger-item {
+    animation: slideInUp 0.45s ease both;
+}
+
+.stagger-item.stagger-hidden {
     opacity: 0;
     transform: translateY(16px);
+    animation: none;
 }
 
 .stagger-item.stagger-visible {
-    animation: slideInUp 0.45s ease forwards;
+    opacity: 1;
+    transform: translateY(0);
+    animation: slideInUp 0.45s ease both;
 }
 
 .stat-row {

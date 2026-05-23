@@ -30,7 +30,7 @@ jobs:
         run: |
           mkdir -p _site/assets
           cp index.html dashboard.html callback.html _site/
-          cp assets/style.css assets/app.js assets/github-pages-base.js _site/assets/
+          cp assets/style.css assets/app.js assets/github-pages-base.js assets/config.example.js _site/assets/
           if [ -n "$SPOTIFY_CLIENT_ID" ]; then
             echo "window.SPOTIFY_CLIENT_ID = '${SPOTIFY_CLIENT_ID}';" > _site/assets/config.js
           else

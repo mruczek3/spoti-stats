@@ -321,6 +321,16 @@ function animateListeningBars(container) {
     });
 }
 
+function revealListItems(container) {
+    if (!container) return;
+    container.querySelectorAll('.stagger-item').forEach((el, i) => {
+        el.style.animationDelay = `${i * 60}ms`;
+        el.classList.remove('stagger-hidden');
+        el.classList.add('stagger-visible');
+    });
+    animateListeningBars(container);
+}
+
 function getPositionChange(trackId, newRank, timeRange) {
     const key = `spotify_track_ranks_${timeRange}`;
     const prev = JSON.parse(localStorage.getItem(key) || '{}');
@@ -355,6 +365,14 @@ function animateCounter(element, target, duration = 1200) {
 
 function staggerSection(sectionEl) {
     if (!sectionEl) return;
+    if (sectionEl.id === 'tracks') {
+        revealListItems(document.getElementById('tracksGrid'));
+        return;
+    }
+    if (sectionEl.id === 'artists') {
+        revealListItems(document.getElementById('artistsGrid'));
+        return;
+    }
     const items = sectionEl.querySelectorAll('.stagger-item');
     items.forEach((el, i) => {
         el.style.animationDelay = `${i * 60}ms`;
@@ -362,7 +380,6 @@ function staggerSection(sectionEl) {
         void el.offsetWidth;
         el.classList.add('stagger-visible');
     });
-    animateListeningBars(sectionEl);
 }
 
 function showTracksSkeleton() {
@@ -486,6 +503,8 @@ async function initDashboard() {
         renderMood(moodTimeline);
         renderReport(user, tracks, artists, features, archetype);
 
+        revealListItems(document.getElementById('tracksGrid'));
+        revealListItems(document.getElementById('artistsGrid'));
         const activeSection = document.querySelector('.section.active');
         staggerSection(activeSection);
     } catch (error) {
@@ -592,7 +611,7 @@ function renderTracks(tracks, timeRange = currentTimeRange) {
     saveTrackRanks(ordered, timeRange);
     requestAnimationFrame(() => {
         grid.classList.remove('list-updating');
-        animateListeningBars(grid);
+        revealListItems(grid);
     });
 }
 
@@ -645,7 +664,7 @@ function renderArtists(artists, timeRange = currentTimeRange) {
 
     requestAnimationFrame(() => {
         grid.classList.remove('list-updating');
-        animateListeningBars(grid);
+        revealListItems(grid);
     });
 }
 
