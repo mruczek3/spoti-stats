@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Auth Callback</title>
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="callback-page">
+    <div class="callback-container">
+        <div class="spinner"></div>
+        <p id="status">Authenticating with Spotify...</p>
+        <p id="error" style="display:none; color: #ff6b6b;"></p>
+    </div>
+
+    <script src="assets/app.js"></script>
+    <script>
+        // Handle OAuth callback
+        handleSpotifyCallback();
+    </script>
+</body>
+</html>

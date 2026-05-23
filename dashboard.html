@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Stats Dashboard</title>
+    <link rel="stylesheet" href="assets/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+</head>
+<body class="dashboard-page">
+    <div class="dashboard-container">
+        <!-- Navbar -->
+        <nav class="navbar">
+            <div class="navbar-brand">
+                <h1>🎵 Spotify Stats</h1>
+            </div>
+            <div class="navbar-tabs">
+                <button class="nav-tab active" data-section="hero">Dashboard</button>
+                <button class="nav-tab" data-section="tracks">Top Tracks</button>
+                <button class="nav-tab" data-section="artists">Artists</button>
+                <button class="nav-tab" data-section="profile">Profile</button>
+                <button class="nav-tab" data-section="listening">Listening</button>
+                <button class="nav-tab" data-section="genres">Genres</button>
+                <button class="nav-tab" data-section="mood">Mood</button>
+                <button class="nav-tab" data-section="report">Report</button>
+            </div>
+            <div class="navbar-user">
+                <span id="userName">Loading...</span>
+                <button id="logoutBtn" class="btn-logout">Logout</button>
+            </div>
+        </nav>
+
+        <!-- Content Area -->
+        <div class="content-area">
+            <!-- Dashboard Section -->
+            <section id="hero" class="section active">
+                <div class="hero-grid">
+                    <div class="card user-card">
+                        <div class="card-header">Your Profile</div>
+                        <div class="user-info">
+                            <div id="profileImage" class="profile-image"></div>
+                            <div id="profileName" class="profile-name">User Name</div>
+                            <div id="profileEmail" class="profile-email">user@email.com</div>
+                            <div id="profileArchetype" class="archetype-badge">The Explorer</div>
+                        </div>
+                    </div>
+
+                    <div class="card stat-card">
+                        <div class="card-header">📊 Top Stats</div>
+                        <div id="topStats" class="stats-grid"></div>
+                    </div>
+
+                    <div class="card featured-card">
+                        <div class="card-header">🎵 Currently Listening</div>
+                        <div id="currentlyPlaying" class="currently-playing"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Top Tracks Section -->
+            <section id="tracks" class="section">
+                <div class="section-header">
+                    <h2>Top Tracks</h2>
+                    <div class="controls">
+                        <button class="btn-filter active" data-range="medium_term">6 Months</button>
+                        <button class="btn-filter" data-range="short_term">4 Weeks</button>
+                        <button class="btn-filter" data-range="long_term">All Time</button>
+                    </div>
+                </div>
+                <div id="tracksGrid" class="tracks-grid"></div>
+            </section>
+
+            <!-- Artists Section -->
+            <section id="artists" class="section">
+                <div class="section-header">
+                    <h2>Top Artists</h2>
+                </div>
+                <div id="artistsGrid" class="artists-grid"></div>
+            </section>
+
+            <!-- Profile Section -->
+            <section id="profile" class="section">
+                <div class="section-header">
+                    <h2>Your Personality Profile</h2>
+                </div>
+                <div class="profile-grid">
+                    <div id="radarChart" class="chart-container"></div>
+                    <div class="profile-info">
+                        <div class="card">
+                            <div class="card-header">Your Archetype</div>
+                            <div id="archetypeCard" class="archetype-content"></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">Dominant Traits</div>
+                            <div id="traitsCard" class="traits-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Listening Section -->
+            <section id="listening" class="section">
+                <div class="section-header">
+                    <h2>Your Listening Patterns</h2>
+                </div>
+                <div class="listening-grid">
+                    <div class="card">
+                        <div class="card-header">24-Hour Clock</div>
+                        <div id="listeningClock" class="listening-clock"></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">Weekly Heatmap</div>
+                        <div id="heatmapGrid" class="heatmap-grid"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Genres Section -->
+            <section id="genres" class="section">
+                <div class="section-header">
+                    <h2>Genre Universe</h2>
+                </div>
+                <div id="genreBubbles" class="genre-bubbles"></div>
+            </section>
+
+            <!-- Mood Section -->
+            <section id="mood" class="section">
+                <div class="section-header">
+                    <h2>Your Mood Over Time</h2>
+                </div>
+                <div id="moodChart" class="chart-container"></div>
+            </section>
+
+            <!-- Report Section -->
+            <section id="report" class="section">
+                <div class="section-header">
+                    <h2>Shareable Report</h2>
+                </div>
+                <div class="report-container">
+                    <div id="reportCard" class="report-card"></div>
+                    <div class="report-controls">
+                        <button id="reportDownloadBtn" class="btn-primary">📥 Download as PNG</button>
+                        <button id="reportCopyBtn" class="btn-primary">📋 Copy to Clipboard</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="assets/app.js"></script>
+    <script>
+        // Initialize dashboard on page load
+        initDashboard();
+    </script>
+</body>
+</html>
