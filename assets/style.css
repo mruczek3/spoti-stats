@@ -261,10 +261,14 @@ body {
 .section-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 30px;
+    align-items: flex-start;
     flex-wrap: wrap;
     gap: 15px;
+}
+
+.section-header > div:first-child {
+    flex: 1;
+    min-width: 200px;
 }
 
 .section-header h2 {
@@ -285,6 +289,65 @@ body {
     height: 3px;
     background: linear-gradient(90deg, var(--primary), var(--tertiary));
     border-radius: 2px;
+}
+
+.section-header-block {
+    margin-bottom: 24px;
+}
+
+.section-header-block .section-header {
+    margin-bottom: 12px;
+}
+
+.section-desc {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin-top: 10px;
+    max-width: 520px;
+}
+
+.section-desc strong {
+    color: var(--text-primary);
+}
+
+.section-summary {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    padding: 12px 18px;
+    background: rgba(29, 185, 84, 0.08);
+    border-left: 3px solid var(--primary);
+    border-radius: 0 8px 8px 0;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    background: var(--card-bg);
+    border: 1px dashed var(--border-color);
+    border-radius: 12px;
+}
+
+.empty-icon {
+    font-size: 3rem;
+    margin-bottom: 12px;
+}
+
+.empty-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.empty-message {
+    color: var(--text-secondary);
+    max-width: 360px;
+    margin: 0 auto;
+}
+
+.list-updating {
+    opacity: 0.4;
+    transition: opacity 0.15s ease;
 }
 
 .controls {
@@ -416,14 +479,14 @@ body {
     text-align: center;
 }
 
-/* ===== TRACKS SECTION ===== */
-.tracks-list {
+/* ===== TRACKS & ARTISTS LISTS ===== */
+.media-list {
     display: flex;
     flex-direction: column;
     gap: 0;
 }
 
-.track-row {
+.media-row {
     display: flex;
     align-items: center;
     gap: 20px;
@@ -437,10 +500,14 @@ body {
     border-left: 3px solid transparent;
 }
 
-.track-row:hover {
+.media-row:hover {
     transform: translateX(4px);
     border-left-color: var(--primary);
     box-shadow: 0 8px 32px var(--accent-glow);
+}
+
+.artist-row:hover .artist-avatar {
+    transform: scale(1.08);
 }
 
 .track-rank-large {
@@ -484,17 +551,15 @@ body {
     text-overflow: ellipsis;
 }
 
-.track-pop-score {
-    font-size: 1.25rem;
-    font-weight: 800;
+.listen-stat {
+    font-size: 0.95rem;
+    font-weight: 700;
     color: var(--primary);
     white-space: nowrap;
 }
 
-.track-pop-score .pop-unit {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-muted);
+.listen-stat-mobile {
+    display: none;
 }
 
 .track-artist {
@@ -512,11 +577,52 @@ body {
     margin-bottom: 8px;
 }
 
+.listening-bar,
 .popularity-bar {
     height: 100%;
     background: linear-gradient(90deg, var(--primary), var(--secondary));
     border-radius: 4px;
     transition: width 0.8s ease;
+}
+
+.artist-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.35), 0 0 20px rgba(29, 185, 84, 0.25);
+    transition: transform 0.3s ease;
+}
+
+.genre-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.genre-pill {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(6, 182, 212, 0.15);
+    color: var(--tertiary);
+    border: 1px solid rgba(6, 182, 212, 0.35);
+}
+
+.artist-meta {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+.artist-footer-mobile,
+.artist-meta-mobile {
+    display: none;
 }
 
 .track-footer {
@@ -599,104 +705,6 @@ body {
     animation: slideInUp 0.45s ease forwards;
 }
 
-/* ===== ARTISTS SECTION ===== */
-.artists-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 20px;
-}
-
-.artist-card {
-    position: relative;
-    border-radius: 12px;
-    overflow: hidden;
-    cursor: pointer;
-    height: 300px;
-    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-    border: 1px solid var(--border-color);
-}
-
-.artist-image-wrap {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-}
-
-.artist-image {
-    width: 100%;
-    height: 100%;
-    background-size: cover;
-    background-position: center;
-    transition: transform 0.4s ease;
-}
-
-.artist-image::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, rgba(10,10,10,0.85), rgba(10,10,10,0.4));
-    z-index: 1;
-    transition: background 0.3s ease;
-}
-
-.artist-rank {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    background: linear-gradient(135deg, var(--primary), var(--tertiary));
-    color: #000;
-    width: 45px;
-    height: 45px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 0.95rem;
-    z-index: 3;
-    box-shadow: 0 4px 12px rgba(29, 185, 84, 0.4);
-}
-
-.artist-overlay {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 18px;
-    background: linear-gradient(180deg, transparent, rgba(10,10,10,0.95));
-    z-index: 2;
-    transform: translateY(20px);
-    transition: transform 0.3s ease;
-}
-
-.artist-card:hover .artist-overlay {
-    transform: translateY(0);
-}
-
-.artist-name {
-    font-size: 1.15rem;
-    font-weight: 700;
-    margin-bottom: 6px;
-    color: var(--text-primary);
-}
-
-.artist-genres {
-    font-size: 0.85rem;
-    color: var(--tertiary);
-    margin-bottom: 10px;
-    font-weight: 500;
-}
-
-.artist-stats {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    font-size: 0.8rem;
-}
-
 .stat-row {
     display: flex;
     justify-content: space-between;
@@ -716,19 +724,6 @@ body {
     font-size: 1rem;
     font-weight: 700;
     color: var(--primary);
-}
-
-.artist-card:hover {
-    border-color: var(--primary);
-    box-shadow: 0 8px 32px var(--accent-glow);
-}
-
-.artist-card:hover .artist-image {
-    transform: scale(1.05);
-}
-
-.artist-card:hover .artist-image::before {
-    background: linear-gradient(135deg, rgba(10,10,10,0.6), rgba(10,10,10,0.2));
 }
 
 /* ===== PROFILE SECTION ===== */
@@ -1080,6 +1075,7 @@ body {
 .skeleton-value { height: 28px; width: 80%; }
 .skeleton-rank { width: 48px; height: 40px; flex-shrink: 0; }
 .skeleton-art { width: 88px; height: 88px; flex-shrink: 0; border-radius: 10px; }
+.skeleton-avatar { width: 56px; height: 56px; flex-shrink: 0; border-radius: 50%; }
 .skeleton-info { flex: 1; height: 72px; }
 .skeleton-block { width: 100%; min-height: 320px; border-radius: 12px; }
 .skeleton-row { pointer-events: none; }
@@ -1124,23 +1120,70 @@ body {
         grid-template-columns: 1fr;
     }
 
-    .artists-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .track-row {
+    .media-row {
         flex-wrap: wrap;
         padding: 16px;
+        align-items: flex-start;
     }
 
     .track-rank-large {
         font-size: 1.8rem;
         min-width: 44px;
+        width: 100%;
+        margin-bottom: 4px;
     }
 
-    .track-art {
-        width: 72px;
-        height: 72px;
+    .track-art,
+    .artist-avatar {
+        width: 64px;
+        height: 64px;
+    }
+
+    .track-details {
+        flex: 1 1 calc(100% - 80px);
+    }
+
+    .track-bar-desktop {
+        display: none;
+    }
+
+    .track-title-row .listen-stat {
+        display: none;
+    }
+
+    .listen-stat-mobile {
+        display: inline;
+    }
+
+    .artist-meta {
+        display: none;
+    }
+
+    .artist-footer-mobile {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .artist-meta-mobile {
+        display: inline;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .controls {
+        width: 100%;
+    }
+
+    .btn-filter {
+        flex: 1;
     }
 
     .content-area {

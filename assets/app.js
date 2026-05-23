@@ -271,6 +271,56 @@ function formatDuration(ms) {
     return `${min}:${String(sec).padStart(2, '0')}`;
 }
 
+const TOP_LIST_LIMIT = 10;
+
+function estimatedTrackPlays(rank) {
+    const r = Math.min(Math.max(rank, 1), 10);
+    if (r <= 1) return 80;
+    if (r >= 10) return 20;
+    return Math.round(80 - ((r - 1) * (80 - 20)) / 9);
+}
+
+function estimatedTrackMinutes(track, rank) {
+    const durationMin = (track.duration_ms || 0) / 60000;
+    return Math.round(durationMin * estimatedTrackPlays(rank));
+}
+
+function estimatedArtistHours(rank) {
+    const r = Math.min(Math.max(rank, 1), 10);
+    const hours = 40 * Math.pow(8 / 40, (r - 1) / 9);
+    return Math.round(hours * 10) / 10;
+}
+
+function formatFollowers(count) {
+    const n = count || 0;
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M followers`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K followers`;
+    return `${n.toLocaleString()} followers`;
+}
+
+function formatListenHours(h) {
+    const rounded = Math.round(h * 10) / 10;
+    const label = rounded % 1 === 0 ? String(Math.round(rounded)) : rounded.toFixed(1);
+    return `~${label}h listened`;
+}
+
+function timeRangeLabel(range) {
+    const labels = { short_term: 'last 4 weeks', medium_term: 'last 6 months', long_term: 'all time' };
+    return labels[range] || range;
+}
+
+function todayLabel() {
+    return new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function animateListeningBars(container) {
+    if (!container) return;
+    container.querySelectorAll('.listening-bar').forEach((bar, i) => {
+        bar.style.width = '0';
+        setTimeout(() => { bar.style.width = bar.dataset.width; }, 150 + i * 60);
+    });
+}
+
 function getPositionChange(trackId, newRank, timeRange) {
     const key = `spotify_track_ranks_${timeRange}`;
     const prev = JSON.parse(localStorage.getItem(key) || '{}');
@@ -312,11 +362,61 @@ function staggerSection(sectionEl) {
         void el.offsetWidth;
         el.classList.add('stagger-visible');
     });
-    sectionEl.querySelectorAll('.popularity-bar').forEach((bar, i) => {
-        const w = bar.dataset.width;
-        bar.style.width = '0';
-        setTimeout(() => { bar.style.width = w; }, 100 + i * 60);
-    });
+    animateListeningBars(sectionEl);
+}
+
+function showTracksSkeleton() {
+    document.getElementById('tracksGrid').innerHTML = Array(TOP_LIST_LIMIT).fill(0).map(() => `
+        <div class="media-row skeleton-row">
+            <div class="skeleton skeleton-rank"></div>
+            <div class="skeleton skeleton-art"></div>
+            <div class="skeleton skeleton-info"></div>
+        </div>
+    `).join('');
+}
+
+function showArtistsSkeleton() {
+    document.getElementById('artistsGrid').innerHTML = Array(TOP_LIST_LIMIT).fill(0).map(() => `
+        <div class="media-row skeleton-row">
+            <div class="skeleton skeleton-rank"></div>
+            <div class="skeleton skeleton-avatar"></div>
+            <div class="skeleton skeleton-info"></div>
+        </div>
+    `).join('');
+}
+
+function renderTracksSummary(tracks) {
+    const el = document.getElementById('tracksSummary');
+    if (!el) return;
+    const count = Math.min(tracks.length, TOP_LIST_LIMIT);
+    el.textContent = count
+        ? `Your top ${count} tracks · Updated ${todayLabel()} · Based on your listening history (${timeRangeLabel(currentTimeRange)})`
+        : '';
+}
+
+function renderArtistsSummary(artists) {
+    const el = document.getElementById('artistsSummary');
+    if (!el) return;
+    const top = artists.slice(0, TOP_LIST_LIMIT);
+    if (!top.length) {
+        el.textContent = '';
+        return;
+    }
+    const totalHours = top.reduce((sum, _, i) => sum + estimatedArtistHours(i + 1), 0);
+    const genreSet = new Set();
+    top.forEach((a) => (a.genres || []).slice(0, 3).forEach((g) => genreSet.add(g)));
+    const hoursLabel = Math.round(totalHours);
+    el.textContent = `Your top ${top.length} artists · ~${hoursLabel} total hours · ${genreSet.size} genres explored (${timeRangeLabel(currentTimeRange)})`;
+}
+
+function emptyStateHtml(icon, title, message) {
+    return `
+        <div class="empty-state">
+            <div class="empty-icon">${icon}</div>
+            <p class="empty-title">${escapeHtml(title)}</p>
+            <p class="empty-message">${escapeHtml(message)}</p>
+        </div>
+    `;
 }
 
 // ===== SKELETONS =====
@@ -328,16 +428,8 @@ function showSkeletons() {
             <div class="skeleton skeleton-value"></div>
         </div>
     `).join('');
-    document.getElementById('tracksGrid').innerHTML = Array(8).fill(0).map(() => `
-        <div class="track-row skeleton-row">
-            <div class="skeleton skeleton-rank"></div>
-            <div class="skeleton skeleton-art"></div>
-            <div class="skeleton skeleton-info"></div>
-        </div>
-    `).join('');
-    document.getElementById('artistsGrid').innerHTML = Array(6).fill(0).map(() => `
-        <div class="artist-card skeleton-card"><div class="skeleton" style="width:100%;height:100%"></div></div>
-    `).join('');
+    showTracksSkeleton();
+    showArtistsSkeleton();
     ['radarChart', 'listeningClock', 'heatmapGrid', 'genreBubbles', 'moodChart', 'reportCard'].forEach((id) => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = '<div class="skeleton skeleton-block"></div>';
@@ -360,7 +452,7 @@ async function initDashboard() {
         const [user, tracksRes, artistsRes, recentRes, playingRes] = await Promise.all([
             callSpotifyAPI('/me'),
             callSpotifyAPI(`/me/top/tracks?limit=50&time_range=${currentTimeRange}`),
-            callSpotifyAPI('/me/top/artists?limit=12&time_range=medium_term'),
+            callSpotifyAPI(`/me/top/artists?limit=50&time_range=${currentTimeRange}`),
             callSpotifyAPI('/me/player/recently-played?limit=50').catch(() => ({ items: [] })),
             callSpotifyAPI('/me/player/currently-playing').catch(() => null)
         ]);
@@ -386,7 +478,8 @@ async function initDashboard() {
         renderUserInfo(user);
         renderHero(user, tracks, artists, playingRes);
         renderTracks(tracks, currentTimeRange);
-        renderArtists(artists);
+        renderArtists(artists, currentTimeRange);
+        syncFilterButtons();
         renderProfile(features, archetype);
         renderListening(listeningHeatmap, weeklyHeatmap);
         renderGenres(genres);
@@ -453,31 +546,42 @@ function renderHero(user, tracks, artists, playingRes) {
 
 function renderTracks(tracks, timeRange = currentTimeRange) {
     const grid = document.getElementById('tracksGrid');
-    const sorted = [...tracks].sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
-    const maxPop = sorted[0]?.popularity || 100;
+    const ordered = (tracks || []).slice(0, TOP_LIST_LIMIT);
+    renderTracksSummary(tracks || []);
 
-    const html = sorted.map((track, i) => {
-        const pop = track.popularity || 0;
-        const barPct = maxPop ? (pop / maxPop) * 100 : 0;
-        const rank = String(i + 1).padStart(2, '0');
-        const change = getPositionChange(track.id, i + 1, timeRange);
+    if (!ordered.length) {
+        grid.innerHTML = emptyStateHtml('🎵', 'No tracks yet', 'Listen to more music on Spotify, then check back after a few days.');
+        return;
+    }
+
+    const minutesList = ordered.map((t, i) => estimatedTrackMinutes(t, i + 1));
+    const maxMinutes = Math.max(...minutesList, 1);
+
+    grid.classList.add('list-updating');
+    grid.innerHTML = ordered.map((track, i) => {
+        const rank = i + 1;
+        const rankLabel = String(rank).padStart(2, '0');
+        const minutes = minutesList[i];
+        const barPct = (minutes / maxMinutes) * 100;
+        const change = getPositionChange(track.id, rank, timeRange);
         const img = track.album?.images?.[0]?.url || '';
 
         return `
-            <div class="track-row stagger-item" data-rank="${i + 1}">
-                <div class="track-rank-large">${rank}</div>
+            <div class="media-row track-row stagger-item">
+                <div class="track-rank-large">${rankLabel}</div>
                 <div class="track-art" style="background-image:url('${img}')"></div>
                 <div class="track-details">
                     <div class="track-title-row">
                         <span class="track-name">${escapeHtml(track.name)}</span>
-                        <span class="track-pop-score" title="Spotify popularity score">${pop}<span class="pop-unit">/100</span></span>
+                        <span class="listen-stat">~${minutes} min listened</span>
                     </div>
                     <div class="track-artist">${escapeHtml(track.artists?.[0]?.name || 'Unknown')}</div>
-                    <div class="track-bar-wrap">
-                        <div class="popularity-bar" data-width="${barPct}%" style="width:0"></div>
+                    <div class="track-bar-wrap track-bar-desktop">
+                        <div class="listening-bar" data-width="${barPct}%" style="width:0"></div>
                     </div>
                     <div class="track-footer">
                         <span class="track-duration">${formatDuration(track.duration_ms)}</span>
+                        <span class="listen-stat listen-stat-mobile">~${minutes} min listened</span>
                         <span class="position-change ${change.className}">${change.label}</span>
                     </div>
                 </div>
@@ -485,45 +589,70 @@ function renderTracks(tracks, timeRange = currentTimeRange) {
         `;
     }).join('');
 
-    grid.innerHTML = html || '<p class="muted-text">No tracks found for this time range.</p>';
-    saveTrackRanks(sorted, timeRange);
-
+    saveTrackRanks(ordered, timeRange);
     requestAnimationFrame(() => {
-        grid.querySelectorAll('.popularity-bar').forEach((bar, i) => {
-            setTimeout(() => { bar.style.width = bar.dataset.width; }, 150 + i * 60);
-        });
+        grid.classList.remove('list-updating');
+        animateListeningBars(grid);
     });
 }
 
-function renderArtists(artists) {
+function renderArtists(artists, timeRange = currentTimeRange) {
     const grid = document.getElementById('artistsGrid');
-    grid.innerHTML = artists.map((artist, i) => {
-        const rank = String(i + 1).padStart(2, '0');
+    const ordered = (artists || []).slice(0, TOP_LIST_LIMIT);
+    renderArtistsSummary(artists || []);
+
+    if (!ordered.length) {
+        grid.innerHTML = emptyStateHtml('🎤', 'No artists yet', 'Your top artists will appear here once Spotify has enough listening data for this period.');
+        return;
+    }
+
+    const hoursList = ordered.map((_, i) => estimatedArtistHours(i + 1));
+    const maxHours = Math.max(...hoursList, 1);
+
+    grid.classList.add('list-updating');
+    grid.innerHTML = ordered.map((artist, i) => {
+        const rank = i + 1;
+        const rankLabel = String(rank).padStart(2, '0');
+        const hours = hoursList[i];
+        const barPct = (hours / maxHours) * 100;
         const img = artist.images?.[0]?.url || '';
-        const genreStr = (artist.genres || []).slice(0, 2).join(', ') || 'Various';
+        const pills = (artist.genres || []).slice(0, 3).map((g) =>
+            `<span class="genre-pill">${escapeHtml(g)}</span>`
+        ).join('') || '<span class="genre-pill">Various</span>';
+
         return `
-            <div class="artist-card stagger-item">
-                <div class="artist-rank">${rank}</div>
-                <div class="artist-image-wrap">
-                    <div class="artist-image" style="background-image:url('${img}')"></div>
-                </div>
-                <div class="artist-overlay">
-                    <div class="artist-name">${escapeHtml(artist.name)}</div>
-                    <div class="artist-genres">${escapeHtml(genreStr)}</div>
-                    <div class="artist-stats">
-                        <div class="stat-row">
-                            <span class="stat-label-sm">Followers</span>
-                            <span class="stat-value-sm">${(artist.followers?.total || 0).toLocaleString()}</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="stat-label-sm">Popularity</span>
-                            <span class="stat-value-sm">${artist.popularity || 0}/100</span>
-                        </div>
+            <div class="media-row artist-row stagger-item">
+                <div class="track-rank-large">${rankLabel}</div>
+                <div class="artist-avatar" style="background-image:url('${img}')"></div>
+                <div class="track-details">
+                    <div class="track-title-row">
+                        <span class="track-name">${escapeHtml(artist.name)}</span>
+                        <span class="listen-stat">${formatListenHours(hours)}</span>
+                    </div>
+                    <div class="genre-pills">${pills}</div>
+                    <div class="artist-meta">${formatFollowers(artist.followers?.total)}</div>
+                    <div class="track-bar-wrap track-bar-desktop">
+                        <div class="listening-bar" data-width="${barPct}%" style="width:0"></div>
+                    </div>
+                    <div class="track-footer artist-footer-mobile">
+                        <span class="listen-stat listen-stat-mobile">${formatListenHours(hours)}</span>
+                        <span class="artist-meta-mobile">${formatFollowers(artist.followers?.total)}</span>
                     </div>
                 </div>
             </div>
         `;
     }).join('');
+
+    requestAnimationFrame(() => {
+        grid.classList.remove('list-updating');
+        animateListeningBars(grid);
+    });
+}
+
+function syncFilterButtons() {
+    document.querySelectorAll('.btn-filter').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.range === currentTimeRange);
+    });
 }
 
 function renderProfile(features, archetype) {
@@ -733,18 +862,35 @@ function setupTabNavigation() {
 function setupFilters() {
     document.querySelectorAll('.btn-filter').forEach((btn) => {
         btn.addEventListener('click', async () => {
-            document.querySelectorAll('.btn-filter').forEach((b) => b.classList.remove('active'));
-            btn.classList.add('active');
-            currentTimeRange = btn.dataset.range;
-            const grid = document.getElementById('tracksGrid');
-            grid.innerHTML = Array(5).fill('<div class="track-row skeleton-row"><div class="skeleton skeleton-rank"></div><div class="skeleton skeleton-art"></div><div class="skeleton skeleton-info"></div></div>').join('');
+            const range = btn.dataset.range;
+            if (!range || range === currentTimeRange) return;
+
+            currentTimeRange = range;
+            syncFilterButtons();
+            showTracksSkeleton();
+            showArtistsSkeleton();
+
             try {
-                const res = await callSpotifyAPI(`/me/top/tracks?limit=50&time_range=${currentTimeRange}`);
-                window.appData.tracks = res.items;
-                renderTracks(res.items, currentTimeRange);
-                staggerSection(document.getElementById('tracks'));
+                const [tracksRes, artistsRes] = await Promise.all([
+                    callSpotifyAPI(`/me/top/tracks?limit=50&time_range=${range}`),
+                    callSpotifyAPI(`/me/top/artists?limit=50&time_range=${range}`)
+                ]);
+                window.appData.tracks = tracksRes.items || [];
+                window.appData.artists = artistsRes.items || [];
+                window.appData.genres = deriveGenresFromArtists(window.appData.artists);
+
+                renderTracks(window.appData.tracks, range);
+                renderArtists(window.appData.artists, range);
+
+                const active = document.querySelector('.section.active');
+                if (active && (active.id === 'tracks' || active.id === 'artists')) {
+                    staggerSection(active);
+                }
             } catch (e) {
                 console.error(e);
+                const msg = emptyStateHtml('⚠️', 'Could not load data', 'Try again in a moment or pick a different time range.');
+                document.getElementById('tracksGrid').innerHTML = msg;
+                document.getElementById('artistsGrid').innerHTML = msg;
             }
         });
     });

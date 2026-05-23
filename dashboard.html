@@ -61,23 +61,40 @@
 
             <!-- Top Tracks Section -->
             <section id="tracks" class="section">
-                <div class="section-header">
-                    <h2>Top Tracks</h2>
-                    <div class="controls">
-                        <button class="btn-filter active" data-range="medium_term">6 Months</button>
-                        <button class="btn-filter" data-range="short_term">4 Weeks</button>
-                        <button class="btn-filter" data-range="long_term">All Time</button>
+                <div class="section-header-block">
+                    <div class="section-header">
+                        <div>
+                            <h2>Top Tracks</h2>
+                            <p class="section-desc">Ranked by how much <strong>you</strong> listened — in the same order Spotify uses for your personal top tracks (not global popularity).</p>
+                        </div>
+                        <div class="controls">
+                            <button class="btn-filter active" data-range="medium_term">6 Months</button>
+                            <button class="btn-filter" data-range="short_term">4 Weeks</button>
+                            <button class="btn-filter" data-range="long_term">All Time</button>
+                        </div>
                     </div>
+                    <p id="tracksSummary" class="section-summary"></p>
                 </div>
-                <div id="tracksGrid" class="tracks-list"></div>
+                <div id="tracksGrid" class="media-list tracks-list"></div>
             </section>
 
             <!-- Artists Section -->
             <section id="artists" class="section">
-                <div class="section-header">
-                    <h2>Top Artists</h2>
+                <div class="section-header-block">
+                    <div class="section-header">
+                        <div>
+                            <h2>Top Artists</h2>
+                            <p class="section-desc">Your most-played artists for this period — ordered by your listening, with estimated hours based on rank.</p>
+                        </div>
+                        <div class="controls">
+                            <button class="btn-filter active" data-range="medium_term">6 Months</button>
+                            <button class="btn-filter" data-range="short_term">4 Weeks</button>
+                            <button class="btn-filter" data-range="long_term">All Time</button>
+                        </div>
+                    </div>
+                    <p id="artistsSummary" class="section-summary"></p>
                 </div>
-                <div id="artistsGrid" class="artists-grid"></div>
+                <div id="artistsGrid" class="media-list artists-list"></div>
             </section>
 
             <!-- Profile Section -->
