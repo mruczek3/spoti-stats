@@ -1,11 +1,18 @@
 // ===== SPOTIFY OAUTH PKCE FLOW =====
-const CLIENT_ID = 'fa5e8ae611124119aee7fd0ba733228c';
+function getClientId() {
+    const id = window.SPOTIFY_CLIENT_ID || '';
+    if (!id || id === 'YOUR_SPOTIFY_CLIENT_ID_HERE') return null;
+    return id;
+}
+
 function getAppBasePath() {
-    const path = window.location.pathname;
-    const marker = '/spotifystats';
-    const idx = path.indexOf(marker);
-    if (idx >= 0) return path.slice(0, idx + marker.length);
-    return path.replace(/\/[^/]*$/, '') || '';
+    const { hostname, pathname } = window.location;
+    if (hostname.endsWith('.github.io')) {
+        const parts = pathname.split('/').filter(Boolean);
+        if (parts.length && !parts[0].includes('.')) return '/' + parts[0];
+        return '';
+    }
+    return pathname.replace(/\/[^/]*$/, '') || '';
 }
 
 const REDIRECT_URI = `${window.location.origin}${getAppBasePath()}/callback.html`;
@@ -41,6 +48,11 @@ async function generateCodeChallenge(verifier) {
 }
 
 async function initiateSpotifyLogin() {
+    const CLIENT_ID = getClientId();
+    if (!CLIENT_ID) {
+        alert('Spotify Client ID is not configured. Add assets/config.js locally, or set the SPOTIFY_CLIENT_ID secret in GitHub for Pages deploy.');
+        return;
+    }
     try {
         const codeVerifier = generateRandomString(64);
         const codeChallenge = await generateCodeChallenge(codeVerifier);
@@ -77,6 +89,13 @@ async function handleSpotifyCallback() {
         errorEl.textContent = 'No authorization code received';
         errorEl.style.display = 'block';
         setTimeout(() => { window.location.href = 'index.html'; }, 3000);
+        return;
+    }
+
+    const CLIENT_ID = getClientId();
+    if (!CLIENT_ID) {
+        errorEl.textContent = 'Spotify Client ID is not configured.';
+        errorEl.style.display = 'block';
         return;
     }
 

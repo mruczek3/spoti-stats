@@ -209,7 +209,7 @@ export const App: React.FC = () => {
               <h3 style={{ marginTop: '2rem', marginBottom: '1rem' }}>Setup Steps:</h3>
               <ol style={styles.setupSteps}>
                 <li>Go to <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer" style={styles.link}>Spotify Developer Dashboard</a></li>
-                <li>Select your app (Client ID: fa5e8ae611124119aee7fd0ba733228c)</li>
+                <li>Select your app and copy its Client ID into <code>assets/config.js</code></li>
                 <li>Click "Edit Settings"</li>
                 <li>Add these Redirect URIs:
                   <div style={styles.uriList}>

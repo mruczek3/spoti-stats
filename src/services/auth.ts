@@ -1,7 +1,7 @@
 // Spotify OAuth Authentication with PKCE flow
 // This is the recommended secure way for Single Page Applications
 
-const CLIENT_ID = 'fa5e8ae611124119aee7fd0ba733228c';
+const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '';
 const SCOPES = [
   'user-read-private',
   'user-read-email',

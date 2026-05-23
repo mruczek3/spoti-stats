@@ -86,7 +86,7 @@ Steps to Set Up:
    https://developer.spotify.com/dashboard
 
 2. Select your application (or create one if you haven't)
-   - Client ID: fa5e8ae611124119aee7fd0ba733228c
+   - Client ID: (set in assets/config.js or VITE_SPOTIFY_CLIENT_ID)
    - Your application should be registered
 
 3. Click "Edit Settings"

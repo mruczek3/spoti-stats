@@ -24,13 +24,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build static site
+        env:
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+        run: |
+          mkdir -p _site/assets
+          cp index.html dashboard.html callback.html _site/
+          cp assets/style.css assets/app.js assets/github-pages-base.js _site/assets/
+          if [ -n "$SPOTIFY_CLIENT_ID" ]; then
+            echo "window.SPOTIFY_CLIENT_ID = '$SPOTIFY_CLIENT_ID';" > _site/assets/config.js
+          else
+            cp assets/config.example.js _site/assets/config.js
+          fi
+          cp .nojekyll _site/
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment

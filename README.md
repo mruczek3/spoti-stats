@@ -4,7 +4,7 @@ Discover your music taste in stunning detail. Spotify Stats analyzes your listen
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) ![Status](https://img.shields.io/badge/Status-Live-brightgreen)
 
-**[🎧 Launch Dashboard](https://mruczek3.github.io/spotify-stats/)**
+**[🎧 Launch Dashboard](https://mruczek3.github.io/)** *(update URL after deploy — see [DEPLOY.md](DEPLOY.md))*
 
 ---
 
@@ -25,11 +25,13 @@ See your music in 8 stunning dashboards:
 
 ## 🚀 Getting Started
 
-### Option 1: Connect with Spotify (Recommended)
-1. Visit the [Spotify Stats Dashboard](https://mruczek3.github.io/spotify-stats/)
+### Deploy your own copy
+See **[DEPLOY.md](DEPLOY.md)** for a fresh GitHub repo + Spotify app + Pages setup.
+
+### Connect with Spotify
+1. Open your deployed site (from GitHub Pages)
 2. Click **"🎧 Connect with Spotify"**
-3. Log in to your Spotify account
-4. Grant permission - See your stats instantly!
+3. Log in and grant permission
 
 ---
 

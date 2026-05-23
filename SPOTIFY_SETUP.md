@@ -11,8 +11,8 @@ Your Spotify Stats application now has **full OAuth integration** ready! The app
   - Recently played tracks (for genre analysis)
   - Currently playing track
   - User profile info
-- **Mock Data Fallback** for demo/testing without authentication
-- **Complete UI** working with both real and mock data
+- **GitHub Pages** deployment via Actions
+- **Client ID** via `assets/config.js` (local) or GitHub Actions secret (production)
 
 ## How It Works
 
@@ -46,18 +46,15 @@ The redirect URI must match your app's current URL. It's automatically generated
 ### Step 2: Update Spotify App Redirect URIs
 
 1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-2. Select your app (or create one with these credentials):
-   - **Client ID:** `fa5e8ae611124119aee7fd0ba733228c`
-   - **Client Secret:** `88dfe19c81094f6da27b8963065fc07c`
+2. Create an app or select your existing one.
 3. Go to "Edit Settings"
-4. Add these Redirect URIs:
+4. Add Redirect URIs (must match your deployment exactly, including `callback.html`):
    ```
-   http://localhost:5173/callback
-   http://localhost:5174/callback
-   http://localhost:5000/callback
-   https://yourdomain.com/callback
+   http://127.0.0.1:5500/callback.html
+   https://mruczek3.github.io/YOUR-REPO-NAME/callback.html
    ```
-5. Click "Save"
+5. Copy the **Client ID** into `assets/config.js` (local) or GitHub secret `SPOTIFY_CLIENT_ID` (Pages deploy). **Never commit Client Secret** — this app uses PKCE and does not need it in the browser.
+6. Click "Save"
 
 ### Step 3: Test Login
 
@@ -211,7 +208,7 @@ user-read-currently-playing # Access what's currently playing
 
 1. Add environment variable (optional, already in code):
    ```
-   VITE_SPOTIFY_CLIENT_ID=fa5e8ae611124119aee7fd0ba733228c
+   VITE_SPOTIFY_CLIENT_ID=your_client_id_here
    ```
 
 2. Update Spotify app redirect URI:
