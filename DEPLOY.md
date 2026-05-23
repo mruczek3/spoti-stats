@@ -45,11 +45,25 @@ On the **new** repo:
 4. Value: paste your Client ID from step 2
 5. Save
 
-## 5. Enable GitHub Pages (Actions)
+## 5. Enable GitHub Pages + fix “Bad credentials”
 
+Do **all three** of these:
+
+### A) Workflow permissions
+1. **Settings** → **Actions** → **General**
+2. Under **Workflow permissions**, choose **Read and write permissions**
+3. Click **Save**
+
+### B) Pages source = GitHub Actions
 1. **Settings** → **Pages**
 2. **Build and deployment** → **Source**: **GitHub Actions** (not “Deploy from branch”)
 3. Save
+
+### C) If deploy still fails (Bad credentials)
+Use the fallback workflow:
+1. **Actions** → **Deploy to gh-pages branch** → **Run workflow**
+2. When it succeeds, go to **Settings** → **Pages**
+3. **Source**: **Deploy from branch** → branch **gh-pages** → folder **/ (root)** → Save
 
 ## 6. Push this project from your PC
 
@@ -60,7 +74,7 @@ cd "c:\Users\hirob\Documents\ahsah"
 
 git remote remove origin 2>$null
 git remote remove spotifystats 2>$null
-git remote add origin https://github.com/mruczek3/YOUR-REPO-NAME.git
+git remote add origin https://github.com/mruczek3/spoti-stats.git
 
 git add -A
 git commit -m "Fresh deploy: GitHub Pages + Spotify config via secret"
@@ -98,7 +112,8 @@ https://mruczek3.github.io/callback.html
 
 | Problem | Fix |
 |--------|-----|
-| 404 on site | Pages source must be **GitHub Actions**; check Actions for errors |
+| Actions: Bad credentials | **Settings → Actions → General** → enable **Read and write**; **Pages** → source **GitHub Actions**; or use fallback **Deploy to gh-pages branch** workflow |
+| 404 on site | Pages source must be **GitHub Actions** (or **gh-pages** branch if using fallback); check Actions for errors |
 | Login says Client ID missing | Add `SPOTIFY_CLIENT_ID` secret; re-run Actions deploy |
 | Spotify “redirect URI mismatch” | Redirect URI in dashboard must match `.../callback.html` exactly |
 | CSS/JS broken | Hard refresh (Ctrl+F5); open site with trailing slash |
