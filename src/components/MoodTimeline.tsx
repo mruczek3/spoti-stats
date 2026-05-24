@@ -1,245 +1,441 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from "react";
 import {
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Area,
-  AreaChart,
-} from 'recharts';
-import type { UserProfile } from '../data/mockData';
+  ReferenceArea,
+} from "recharts";
+import type { UserProfile } from "../data/mockData";
 
 interface MoodTimelineProps {
   profile: UserProfile;
 }
 
+// ── Animated Circular Mood Gauge ─────────────────────────────────────────────
+const MoodGauge: React.FC<{ value: number }> = ({ value }) => {
+  const [displayed, setDisplayed] = useState(0);
+  const r = 52;
+  const circ = 2 * Math.PI * r; // ≈ 326.7
+
+  // Animate counter from 0 → value using cubic ease-out via rAF
+  useEffect(() => {
+    let rafId = 0;
+    const dur = 1400;
+    const t0 = performance.now();
+
+    const tick = (now: number) => {
+      const p = Math.min((now - t0) / dur, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setDisplayed(Math.round(eased * value));
+      if (p < 1) rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [value]);
+
+  const offset = circ - (displayed / 100) * circ;
+
+  return (
+    <svg width="136" height="136" viewBox="0 0 136 136">
+      <defs>
+        <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#1db954" />
+          <stop offset="100%" stopColor="#06b6d4" />
+        </linearGradient>
+      </defs>
+
+      {/* Track ring */}
+      <circle
+        cx="68"
+        cy="68"
+        r={r}
+        fill="none"
+        stroke="rgba(29,185,84,0.12)"
+        strokeWidth="10"
+      />
+      {/* Animated progress arc */}
+      <circle
+        cx="68"
+        cy="68"
+        r={r}
+        fill="none"
+        stroke="url(#gaugeGrad)"
+        strokeWidth="10"
+        strokeLinecap="round"
+        strokeDasharray={circ}
+        strokeDashoffset={offset}
+        transform="rotate(-90 68 68)"
+      />
+
+      {/* Score readout */}
+      <text
+        x="68"
+        y="62"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill="#fff"
+        fontSize="26"
+        fontWeight="700"
+        fontFamily="DM Sans, sans-serif"
+      >
+        {displayed}
+      </text>
+      <text
+        x="68"
+        y="81"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill="#b3b3b3"
+        fontSize="11"
+        fontFamily="DM Sans, sans-serif"
+      >
+        / 100
+      </text>
+    </svg>
+  );
+};
+
+// ── Recharts custom tooltip ───────────────────────────────────────────────────
+interface ChartPayloadItem {
+  value: number;
+  payload: {
+    month: string;
+    valence: number;
+    topTrack?: string;
+  };
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: ChartPayloadItem[];
+}
+
+const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div
+      style={{
+        background: "rgba(10,10,10,0.96)",
+        border: "1px solid rgba(29,185,84,0.42)",
+        borderRadius: "12px",
+        padding: "1rem 1.25rem",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+        minWidth: "175px",
+      }}
+    >
+      <p
+        style={{
+          color: "#1db954",
+          fontWeight: 700,
+          fontSize: "0.95rem",
+          marginBottom: "0.45rem",
+        }}
+      >
+        {d.month}
+      </p>
+      <p
+        style={{
+          color: "#b3b3b3",
+          fontSize: "0.84rem",
+          marginBottom: "0.25rem",
+        }}
+      >
+        Mood Score:{" "}
+        <span style={{ color: "#fff", fontWeight: 600 }}>
+          {Math.round(d.valence)}/100
+        </span>
+      </p>
+      <p style={{ color: "#b3b3b3", fontSize: "0.84rem", margin: 0 }}>
+        Top Track:{" "}
+        <span style={{ color: "#fff", fontWeight: 600 }}>
+          {d.topTrack ?? "—"}
+        </span>
+      </p>
+    </div>
+  );
+};
+
+// ── Main component ────────────────────────────────────────────────────────────
 export const MoodTimeline: React.FC<MoodTimelineProps> = ({ profile }) => {
   const data = profile.moodTimeline;
 
-  const moodShifts = [];
-  for (let i = 1; i < data.length; i++) {
-    const diff = Math.abs(data[i].valence - data[i - 1].valence);
-    if (diff > 15) {
-      moodShifts.push({
-        month: data[i].month,
-        prevMonth: data[i - 1].month,
-        change: data[i].valence - data[i - 1].valence,
-        magnitude: diff,
-      });
-    }
-  }
+  const avgValence = useMemo(
+    () => data.reduce((s, d) => s + d.valence, 0) / data.length,
+    [data],
+  );
 
-  const avgValence =
-    data.reduce((sum, d) => sum + d.valence, 0) / data.length;
-  const maxValence = Math.max(...data.map((d) => d.valence));
-  const minValence = Math.min(...data.map((d) => d.valence));
+  // Sorted high→low to derive insight cards
+  const sortedDesc = useMemo(
+    () => [...data].sort((a, b) => b.valence - a.valence),
+    [data],
+  );
 
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div style={styles.tooltip}>
-          <p style={{ color: '#1db954', fontWeight: '700' }}>
-            {payload[0].payload.month}
-          </p>
-          <p style={{ color: '#b3b3b3' }}>
-            Valence: {Math.round(payload[0].value)}%
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
+  const happiest = sortedDesc[0];
+  const saddest = sortedDesc[sortedDesc.length - 1];
+  const energetic = sortedDesc[2] ?? sortedDesc[1]; // 3rd highest for variety
+
+  const moodEmoji =
+    avgValence >= 70
+      ? "😄 Very Happy"
+      : avgValence >= 50
+        ? "🙂 Content"
+        : avgValence >= 35
+          ? "😐 Neutral"
+          : "😔 Melancholic";
+
+  const insightCards = [
+    {
+      emoji: "🌞",
+      title: "Happiest Month",
+      month: happiest.month,
+      score: happiest.valence,
+      topTrack: happiest.topTrack,
+      color: "#f59e0b",
+      bg: "rgba(245,158,11,0.07)",
+      borderColor: "rgba(245,158,11,0.28)",
+    },
+    {
+      emoji: "🌙",
+      title: "Most Melancholic",
+      month: saddest.month,
+      score: saddest.valence,
+      topTrack: saddest.topTrack,
+      color: "#06b6d4",
+      bg: "rgba(6,182,212,0.07)",
+      borderColor: "rgba(6,182,212,0.28)",
+    },
+    {
+      emoji: "⚡",
+      title: "Most Energetic",
+      month: energetic.month,
+      score: energetic.valence,
+      topTrack: energetic.topTrack,
+      color: "#1db954",
+      bg: "rgba(29,185,84,0.07)",
+      borderColor: "rgba(29,185,84,0.28)",
+    },
+  ];
 
   return (
     <section style={styles.section} className="section fade-on-scroll">
       <div style={styles.container}>
-        <h2 style={{ marginBottom: '3rem' }}>Mood Timeline</h2>
+        <h2 style={{ marginBottom: "3rem" }}>Mood Timeline</h2>
 
-        <div style={styles.contentGrid}>
-          {/* Chart */}
-          <div style={styles.chartContainer} className="card">
-            <h3 style={{ marginBottom: '1.5rem' }}>Your 12-Month Mood Journey</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+        {/* ── Top row: Gauge (left) + Area chart (right) ───────────────────── */}
+        <div style={styles.topRow}>
+          {/* Gauge card */}
+          <div
+            className="card"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "1.1rem",
+              minWidth: "195px",
+            }}
+          >
+            <h3
+              style={{ fontSize: "1rem", textAlign: "center", marginBottom: 0 }}
+            >
+              Avg Mood Score
+            </h3>
+            <MoodGauge value={Math.round(avgValence)} />
+            <p
+              style={{
+                color: "#1db954",
+                fontWeight: 700,
+                fontSize: "0.95rem",
+                textAlign: "center",
+                margin: 0,
+              }}
+            >
+              {moodEmoji}
+            </p>
+          </div>
+
+          {/* Mood journey chart */}
+          <div className="card" style={{ flex: 1, minWidth: 0 }}>
+            <h3 style={{ marginBottom: "1.5rem" }}>12-Month Mood Journey</h3>
+
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart
+                data={data}
+                margin={{ top: 10, right: 20, left: -10, bottom: 0 }}
+              >
                 <defs>
-                  <linearGradient id="colorValence" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#1db954" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#1db954" stopOpacity={0.1} />
+                  {/* Green-to-transparent gradient fill below the line */}
+                  <linearGradient id="moodFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#1db954" stopOpacity={0.55} />
+                    <stop offset="100%" stopColor="#1db954" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="rgba(29, 185, 84, 0.1)" strokeDasharray="3" />
+
+                {/* ── Coloured zone bands ─────────────────────────────────── */}
+                {/* Energetic zone: valence 75–100 */}
+                <ReferenceArea
+                  y1={75}
+                  y2={100}
+                  fill="rgba(245,158,11,0.08)"
+                  label={{
+                    value: "Energetic",
+                    position: "insideTopRight",
+                    fill: "#f59e0b",
+                    fontSize: 10,
+                  }}
+                />
+                {/* Melancholic zone: valence 0–35 */}
+                <ReferenceArea
+                  y1={0}
+                  y2={35}
+                  fill="rgba(6,182,212,0.08)"
+                  label={{
+                    value: "Melancholic",
+                    position: "insideBottomRight",
+                    fill: "#06b6d4",
+                    fontSize: 10,
+                  }}
+                />
+
+                <CartesianGrid
+                  stroke="rgba(255,255,255,0.05)"
+                  strokeDasharray="3 3"
+                  vertical={false}
+                />
                 <XAxis
                   dataKey="month"
-                  stroke="#b3b3b3"
-                  style={{ fontSize: '12px' }}
+                  stroke="transparent"
+                  tick={{ fill: "#b3b3b3", fontSize: 12 }}
+                  axisLine={false}
+                  tickLine={false}
                 />
                 <YAxis
-                  stroke="#b3b3b3"
+                  stroke="transparent"
                   domain={[0, 100]}
-                  style={{ fontSize: '12px' }}
+                  tick={{ fill: "#b3b3b3", fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
                 />
-                <Tooltip content={<CustomTooltip />} />
+
+                {/* Custom hoverable tooltip showing month, score, top track */}
+                <Tooltip
+                  content={<CustomTooltip />}
+                  cursor={{ stroke: "rgba(29,185,84,0.3)", strokeWidth: 1 }}
+                />
+
+                {/* Smooth monotone area with visible dots + enlarged active dot */}
                 <Area
                   type="monotone"
                   dataKey="valence"
                   stroke="#1db954"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorValence)"
+                  strokeWidth={2.5}
+                  fill="url(#moodFill)"
+                  dot={{
+                    r: 4,
+                    fill: "#1db954",
+                    stroke: "#111",
+                    strokeWidth: 2,
+                  }}
+                  activeDot={{
+                    r: 7,
+                    fill: "#1db954",
+                    stroke: "#fff",
+                    strokeWidth: 2,
+                  }}
                 />
               </AreaChart>
             </ResponsiveContainer>
           </div>
+        </div>
 
-          {/* Stats & Insights */}
-          <div>
-            {/* Key Stats */}
-            <div style={styles.statsCard} className="card animate-in">
-              <h3 style={{ marginBottom: '1.5rem' }}>Key Insights</h3>
-
-              <div style={styles.statBlock}>
-                <p style={{ color: '#b3b3b3', marginBottom: '0.5rem' }}>
-                  Average Valence (Happiness)
-                </p>
-                <h4 style={{ color: '#1db954', fontSize: '2rem' }}>
-                  {Math.round(avgValence)}%
+        {/* ── Insight cards row ─────────────────────────────────────────────── */}
+        <div style={styles.insightRow}>
+          {insightCards.map((card, idx) => (
+            <div
+              key={card.title}
+              className="card animate-in"
+              style={{
+                flex: 1,
+                background: card.bg,
+                borderColor: card.borderColor,
+                // Stagger each card's entrance; use 'both' so the element starts
+                // at opacity:0 during the delay (no flash)
+                animationDelay: `${idx * 0.12}s`,
+                animationFillMode: "both",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  marginBottom: "1rem",
+                }}
+              >
+                <span style={{ fontSize: "1.75rem" }}>{card.emoji}</span>
+                <h4 style={{ color: card.color, margin: 0, fontSize: "1rem" }}>
+                  {card.title}
                 </h4>
               </div>
 
-              <div style={{ ...styles.statBlock, borderTop: '1px solid rgba(29, 185, 84, 0.2)', paddingTop: '1.5rem' }}>
-                <p style={{ color: '#b3b3b3', marginBottom: '0.5rem' }}>
-                  Happiest Period
-                </p>
-                <h4 style={{ color: '#1db954', fontSize: '1.3rem' }}>
-                  {data[data.findIndex((d) => d.valence === maxValence)].month}
-                  <span style={{ fontSize: '1rem', marginLeft: '0.5rem' }}>
-                    {Math.round(maxValence)}%
-                  </span>
-                </h4>
-              </div>
+              {/* Month name — body font so it doesn't shout */}
+              <p
+                style={{
+                  color: "#fff",
+                  fontSize: "1.35rem",
+                  fontWeight: 700,
+                  fontFamily: "DM Sans, sans-serif",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                {card.month}
+              </p>
 
-              <div style={{ ...styles.statBlock, borderTop: '1px solid rgba(29, 185, 84, 0.2)', paddingTop: '1.5rem' }}>
-                <p style={{ color: '#b3b3b3', marginBottom: '0.5rem' }}>
-                  Most Melancholic Period
-                </p>
-                <h4 style={{ color: '#f59e0b', fontSize: '1.3rem' }}>
-                  {data[data.findIndex((d) => d.valence === minValence)].month}
-                  <span style={{ fontSize: '1rem', marginLeft: '0.5rem' }}>
-                    {Math.round(minValence)}%
-                  </span>
-                </h4>
-              </div>
+              <p
+                style={{
+                  color: card.color,
+                  fontSize: "0.88rem",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Mood: {Math.round(card.score)}/100
+              </p>
+
+              <p style={{ color: "#b3b3b3", fontSize: "0.78rem", margin: 0 }}>
+                🎵 {card.topTrack ?? "—"}
+              </p>
             </div>
-
-            {/* Mood Shifts */}
-            <div style={styles.shiftsCard} className="card animate-in">
-              <h3 style={{ marginBottom: '1.5rem' }}>Major Mood Shifts</h3>
-
-              {moodShifts.length > 0 ? (
-                <div style={styles.shiftsList}>
-                  {moodShifts.map((shift, idx) => (
-                    <MoodShiftItem key={idx} shift={shift} index={idx} />
-                  ))}
-                </div>
-              ) : (
-                <p style={{ color: '#b3b3b3' }}>
-                  Your mood remained fairly consistent throughout the year.
-                </p>
-              )}
-            </div>
-          </div>
+          ))}
         </div>
       </div>
     </section>
   );
 };
 
-interface MoodShiftItemProps {
-  shift: {
-    month: string;
-    prevMonth: string;
-    change: number;
-    magnitude: number;
-  };
-  index: number;
-}
-
-const MoodShiftItem: React.FC<MoodShiftItemProps> = ({ shift, index }) => (
-  <div
-    style={{
-      ...styles.shiftItem,
-      animation: 'fadeInUp 0.6s ease-out forwards',
-      animationDelay: `${index * 0.1}s`,
-      opacity: 0,
-    }}
-  >
-    <div style={styles.shiftHeader}>
-      <span style={{ fontWeight: '600' }}>
-        {shift.prevMonth} → {shift.month}
-      </span>
-      <span
-        style={{
-          color: shift.change > 0 ? '#06b6d4' : '#f59e0b',
-          fontWeight: '700',
-        }}
-      >
-        {shift.change > 0 ? '↑' : '↓'} {Math.abs(Math.round(shift.change))}%
-      </span>
-    </div>
-    <div style={styles.shiftDescription}>
-      {shift.change > 0
-        ? `You became ${Math.round(Math.abs(shift.change))}% happier`
-        : `You became ${Math.round(Math.abs(shift.change))}% more melancholic`}
-    </div>
-  </div>
-);
-
 const styles: Record<string, React.CSSProperties> = {
   section: {
-    background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, transparent 100%)',
+    background:
+      "linear-gradient(135deg, rgba(245,158,11,0.05) 0%, transparent 100%)",
   },
   container: {
-    maxWidth: '1400px',
-    margin: '0 auto',
-    padding: '0 2rem',
+    maxWidth: "1400px",
+    margin: "0 auto",
+    padding: "0 2rem",
   },
-  contentGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '2rem',
+  topRow: {
+    display: "flex",
+    gap: "2rem",
+    marginBottom: "2rem",
+    alignItems: "stretch",
   },
-  chartContainer: {},
-  tooltip: {
-    background: 'rgba(10, 10, 10, 0.9)',
-    padding: '1rem',
-    borderRadius: '8px',
-    border: '1px solid rgba(29, 185, 84, 0.3)',
-  },
-  statsCard: {},
-  statBlock: {
-    marginBottom: '1.5rem',
-  },
-  shiftsCard: {},
-  shiftsList: {
-    display: 'grid',
-    gridTemplateColumns: '1fr',
-    gap: '1rem',
-  },
-  shiftItem: {
-    padding: '1rem',
-    background: 'rgba(29, 185, 84, 0.05)',
-    borderRadius: '8px',
-    borderLeft: '3px solid #1db954',
-  },
-  shiftHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '0.5rem',
-  },
-  shiftDescription: {
-    color: '#b3b3b3',
-    fontSize: '0.9rem',
+  insightRow: {
+    display: "flex",
+    gap: "1.5rem",
   },
 };

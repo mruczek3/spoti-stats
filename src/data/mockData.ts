@@ -61,9 +61,10 @@ export interface UserProfile {
   listeningHistory: {
     hour: number;
     count: number;
+    topTrack?: string;
   }[];
   weeklyHeatmap: number[][];
-  moodTimeline: { month: string; valence: number }[];
+  moodTimeline: { month: string; valence: number; topTrack?: string }[];
   genres: Map<string, { count: number; hours: number }>;
   discoveries: {
     month: string;
@@ -77,71 +78,61 @@ const ARTISTS_POOL = [
     name: "Kendrick Lamar",
     genres: ["Hip-Hop", "Rap"],
     popularity: 92,
-    image:
-      "https://i.scdn.co/image/ab6761610000f178a45b1b7e503fb0e71a78a8f0",
+    image: "https://i.scdn.co/image/ab6761610000f178a45b1b7e503fb0e71a78a8f0",
   },
   {
     name: "Tyler, The Creator",
     genres: ["Hip-Hop", "Rap", "Alternative"],
     popularity: 88,
-    image:
-      "https://i.scdn.co/image/ab6761610000f17864f15c2efdb31c05d2a16a7d",
+    image: "https://i.scdn.co/image/ab6761610000f17864f15c2efdb31c05d2a16a7d",
   },
   {
     name: "Radiohead",
     genres: ["Rock", "Alternative", "Indie"],
     popularity: 85,
-    image:
-      "https://i.scdn.co/image/ab6761610000f17845bfc07dd0cf5d89a2c8fa0e",
+    image: "https://i.scdn.co/image/ab6761610000f17845bfc07dd0cf5d89a2c8fa0e",
   },
   {
     name: "The Weeknd",
     genres: ["R&B", "Pop", "Electronic"],
     popularity: 94,
-    image:
-      "https://i.scdn.co/image/ab6761610000f178e6de04cd583feb84e82e79ff",
+    image: "https://i.scdn.co/image/ab6761610000f178e6de04cd583feb84e82e79ff",
   },
   {
     name: "Frank Ocean",
     genres: ["R&B", "Hip-Hop", "Soul"],
     popularity: 82,
-    image:
-      "https://i.scdn.co/image/ab6761610000f178c2c6e70d28485a2e87db1786",
+    image: "https://i.scdn.co/image/ab6761610000f178c2c6e70d28485a2e87db1786",
   },
   {
     name: "Dua Lipa",
     genres: ["Pop", "Dance", "Electronic"],
     popularity: 89,
-    image:
-      "https://i.scdn.co/image/ab6761610000f17803b2ad4eaf0b18f92de7a47a",
+    image: "https://i.scdn.co/image/ab6761610000f17803b2ad4eaf0b18f92de7a47a",
   },
   {
     name: "Tame Impala",
     genres: ["Psychedelic Pop", "Alternative", "Electronic"],
     popularity: 84,
-    image:
-      "https://i.scdn.co/image/ab6761610000f178b65c54c05a91f39e0d6ecd2b",
+    image: "https://i.scdn.co/image/ab6761610000f178b65c54c05a91f39e0d6ecd2b",
   },
   {
     name: "Billie Eilish",
     genres: ["Alternative", "Pop", "Indie"],
     popularity: 90,
-    image:
-      "https://i.scdn.co/image/ab6761610000f1782c1b9b7eae7b7d1c87e8a0e7",
+    image: "https://i.scdn.co/image/ab6761610000f1782c1b9b7eae7b7d1c87e8a0e7",
   },
   {
     name: "SZA",
     genres: ["R&B", "Soul", "Hip-Hop"],
     popularity: 88,
-    image:
-      "https://i.scdn.co/image/ab6761610000f178a94f8a2c43d0e6f9c8d8d8d8",
+    image: "https://i.scdn.co/image/ab6761610000f178a94f8a2c43d0e6f9c8d8d8d8",
   },
   {
     name: "The 1975",
     genres: ["Indie Pop", "Alternative", "Synthwave"],
     popularity: 81,
-    image:
-      "https://i.scdn.co/image/ab6761610000f178b8c8c8c8c8c8c8c8c8c8c8c8",
+    image: "https://i.scdn.co/image/ab6761610000f178b8c8c8c8c8c8c8c8c8c8c8c8",
   },
 ];
 
@@ -319,7 +310,7 @@ function generateTracks(): Track[] {
     releaseDate: new Date(
       2020 + Math.floor(idx / 5),
       Math.floor(Math.random() * 12),
-      Math.floor(Math.random() * 28) + 1
+      Math.floor(Math.random() * 28) + 1,
     ).toISOString(),
     popularity: Math.floor(Math.random() * 40) + 60,
     audioFeatures: generateAudioFeatures(),
@@ -340,7 +331,7 @@ function generateArtists(): Artist[] {
     popularity: artist.popularity,
     loyaltyScore: Math.floor(Math.random() * 40) + 50,
     firstListenedAt: new Date(
-      Date.now() - Math.random() * 3 * 365 * 24 * 60 * 60 * 1000
+      Date.now() - Math.random() * 3 * 365 * 24 * 60 * 60 * 1000,
     ),
   }));
 }
@@ -348,12 +339,15 @@ function generateArtists(): Artist[] {
 function generateListeningHeatmap(): {
   hour: number;
   count: number;
+  topTrack?: string;
 }[] {
   const heatmap = [];
   for (let i = 0; i < 24; i++) {
     heatmap.push({
       hour: i,
       count: Math.floor(Math.random() * 100) + 10,
+      topTrack:
+        TRACKS_POOL[Math.floor(Math.random() * TRACKS_POOL.length)].name,
     });
   }
   return heatmap;
@@ -371,7 +365,11 @@ function generateWeeklyHeatmap(): number[][] {
   return heatmap;
 }
 
-function generateMoodTimeline(): { month: string; valence: number }[] {
+function generateMoodTimeline(): {
+  month: string;
+  valence: number;
+  topTrack?: string;
+}[] {
   const months = [
     "Jan",
     "Feb",
@@ -389,10 +387,8 @@ function generateMoodTimeline(): { month: string; valence: number }[] {
   return months.map((month, idx) => ({
     month,
     valence:
-      Math.sin((idx / 12) * Math.PI * 2) * 30 +
-      50 +
-      Math.random() * 20 -
-      10,
+      Math.sin((idx / 12) * Math.PI * 2) * 30 + 50 + Math.random() * 20 - 10,
+    topTrack: TRACKS_POOL[Math.floor(Math.random() * TRACKS_POOL.length)].name,
   }));
 }
 
@@ -481,7 +477,8 @@ function generateArchetype(personality: Record<string, number>): {
       "Late nights, headphones on, lost in the ethereal soundscapes of your mind.";
   } else if (danceability > 75) {
     archetype = "The Groove Seeker";
-    description = "Rhythm is your religion. Every beat moves you, every groove speaks to your soul.";
+    description =
+      "Rhythm is your religion. Every beat moves you, every groove speaks to your soul.";
   }
 
   return { name: archetype, description };
@@ -496,10 +493,11 @@ export function generateMockUserProfile(): UserProfile {
   return {
     id: generateRandomId(),
     displayName: "Jordan Artist",
-    avatar:
-      "https://i.scdn.co/image/ab6761610000f17809c7dd2e2c4d1f2f3f4f5f6f",
+    avatar: "https://i.scdn.co/image/ab6761610000f17809c7dd2e2c4d1f2f3f4f5f6f",
     topTracks: topTracks.sort((a, b) => b.playCount - a.playCount).slice(0, 20),
-    topArtists: topArtists.sort((a, b) => b.totalPlaytime - a.totalPlaytime).slice(0, 10),
+    topArtists: topArtists
+      .sort((a, b) => b.totalPlaytime - a.totalPlaytime)
+      .slice(0, 10),
     totalMinutesListened: Math.floor(Math.random() * 100000) + 50000,
     artistsDiscovered: Math.floor(Math.random() * 500) + 100,
     listeningStreak: Math.floor(Math.random() * 365) + 30,
@@ -525,7 +523,7 @@ export function generateComparison() {
 // Calculate compatibility score
 export function calculateCompatibility(
   user1Personality: Record<string, number>,
-  user2Personality: Record<string, number>
+  user2Personality: Record<string, number>,
 ): number {
   let score = 0;
   let count = 0;

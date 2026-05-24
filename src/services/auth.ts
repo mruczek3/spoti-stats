@@ -1,24 +1,30 @@
-// Spotify OAuth Authentication with PKCE flow
-// This is the recommended secure way for Single Page Applications
+// Spotify OAuth Authentication with PKCE flow + refresh token support
 
-const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '';
+const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || "";
 const SCOPES = [
-  'user-read-private',
-  'user-read-email',
-  'user-top-read',
-  'user-read-recently-played',
-  'user-read-playback-state',
-  'user-read-currently-playing'
-].join(' ');
+  "user-read-private",
+  "user-read-email",
+  "user-top-read",
+  "user-read-recently-played",
+  "user-read-playback-state",
+  "user-read-currently-playing",
+].join(" ");
 
-// Get local IP address using WebRTC (works in all modern browsers)
+// ── Storage Keys ──────────────────────────────────────────────────────────────
+const KEY_ACCESS_TOKEN = "spotify_access_token";
+const KEY_REFRESH_TOKEN = "spotify_refresh_token";
+const KEY_EXPIRES_AT = "spotify_token_expires_at";
+const KEY_LOCAL_IP = "spotify_local_ip";
+const NICKNAME_PREFIX = "spotify_nickname_";
+
+// ── IP / Redirect URI ─────────────────────────────────────────────────────────
 async function getLocalIP(): Promise<string> {
-  const stored = localStorage.getItem('spotify_local_ip');
+  const stored = localStorage.getItem(KEY_LOCAL_IP);
   if (stored) return stored;
 
   try {
     const pc = new (window as any).RTCPeerConnection({ iceServers: [] });
-    pc.createDataChannel('');
+    pc.createDataChannel("");
     pc.createOffer().then((offer: any) => pc.setLocalDescription(offer));
 
     return new Promise<string>((resolve) => {
@@ -26,141 +32,200 @@ async function getLocalIP(): Promise<string> {
         pc.close();
         resolve(window.location.hostname);
       }, 2000);
-
       pc.onicecandidate = (ice: any) => {
-        if (!ice || !ice.candidate) return;
-        const ipRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3})/;
-        const ipAddress = ipRegex.exec(ice.candidate.candidate)?.[1];
-        if (ipAddress && !ipAddress.startsWith('127')) {
+        if (!ice?.candidate) return;
+        const ip = /([0-9]{1,3}(\.[0-9]{1,3}){3})/.exec(
+          ice.candidate.candidate,
+        )?.[1];
+        if (ip && !ip.startsWith("127")) {
           clearTimeout(timeout);
-          localStorage.setItem('spotify_local_ip', ipAddress);
-          resolve(ipAddress);
+          localStorage.setItem(KEY_LOCAL_IP, ip);
+          resolve(ip);
           pc.close();
         }
       };
     });
-  } catch (error) {
-    console.log('Could not detect local IP, using hostname');
+  } catch {
     return window.location.hostname;
   }
 }
 
-// Build redirect URI with IP address (not localhost)
 async function getRedirectUri(): Promise<string> {
   let hostname = window.location.hostname;
-  
-  // If on localhost, try to detect actual IP
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
     hostname = await getLocalIP();
   }
-
-  const port = window.location.port || '5173';
+  const port = window.location.port || "5173";
   return `http://${hostname}:${port}/callback`;
 }
 
 let REDIRECT_URI: string = `${window.location.origin}/callback`;
 
-// Generate random string for PKCE challenge
+// ── PKCE helpers ──────────────────────────────────────────────────────────────
 function generateRandomString(length: number): string {
-  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let text = '';
-  for (let i = 0; i < length; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
+  const chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  return Array.from(
+    { length },
+    () => chars[Math.floor(Math.random() * chars.length)],
+  ).join("");
 }
 
-// Generate SHA256 hash for PKCE
-async function generateCodeChallenge(codeVerifier: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(codeVerifier);
-  const digest = await crypto.subtle.digest('SHA-256', data);
+async function generateCodeChallenge(verifier: string): Promise<string> {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest("SHA-256", data);
   return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
 }
 
+// ── Auth Flow ─────────────────────────────────────────────────────────────────
 export async function redirectToSpotifyAuth(): Promise<void> {
   const codeVerifier = generateRandomString(128);
   const codeChallenge = await generateCodeChallenge(codeVerifier);
 
-  // Get IP-based redirect URI
   REDIRECT_URI = await getRedirectUri();
-  console.log('Using redirect URI:', REDIRECT_URI);
-
-  // Store code verifier in sessionStorage for later use
-  sessionStorage.setItem('spotify_code_verifier', codeVerifier);
+  sessionStorage.setItem("spotify_code_verifier", codeVerifier);
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
-    response_type: 'code',
+    response_type: "code",
     redirect_uri: REDIRECT_URI,
     scope: SCOPES,
-    code_challenge_method: 'S256',
-    code_challenge: codeChallenge
+    code_challenge_method: "S256",
+    code_challenge: codeChallenge,
   });
 
-  window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`;
+  window.location.href = `https://accounts.spotify.com/authorize?${params}`;
 }
 
 export async function exchangeCodeForToken(code: string): Promise<string> {
-  const codeVerifier = sessionStorage.getItem('spotify_code_verifier');
-  if (!codeVerifier) {
-    throw new Error('Code verifier not found');
-  }
+  const codeVerifier = sessionStorage.getItem("spotify_code_verifier");
+  if (!codeVerifier) throw new Error("Code verifier not found");
 
-  // Use the same redirect URI that was sent to Spotify
   const redirectUri = REDIRECT_URI || (await getRedirectUri());
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
-    grant_type: 'authorization_code',
+    grant_type: "authorization_code",
     code,
     redirect_uri: redirectUri,
-    code_verifier: codeVerifier
+    code_verifier: codeVerifier,
   });
 
-  const response = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: params
+  const res = await fetch("https://accounts.spotify.com/api/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params,
   });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    console.error('Token exchange error:', errorData);
-    throw new Error(`Failed to exchange code for token: ${errorData.error_description || response.statusText}`);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(
+      `Token exchange failed: ${err.error_description || res.statusText}`,
+    );
   }
 
-  const data = await response.json();
-  sessionStorage.removeItem('spotify_code_verifier');
-  
-  // Store token and expiration
-  localStorage.setItem('spotify_access_token', data.access_token);
-  localStorage.setItem('spotify_token_expires_at', String(Date.now() + data.expires_in * 1000));
-  
+  const data = await res.json();
+  sessionStorage.removeItem("spotify_code_verifier");
+
+  _storeTokens(data.access_token, data.refresh_token, data.expires_in);
   return data.access_token;
 }
 
+function _storeTokens(
+  accessToken: string,
+  refreshToken: string | undefined,
+  expiresIn: number,
+) {
+  localStorage.setItem(KEY_ACCESS_TOKEN, accessToken);
+  localStorage.setItem(KEY_EXPIRES_AT, String(Date.now() + expiresIn * 1000));
+  if (refreshToken) {
+    localStorage.setItem(KEY_REFRESH_TOKEN, refreshToken);
+  }
+}
+
+// ── Refresh Token ─────────────────────────────────────────────────────────────
+export async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = localStorage.getItem(KEY_REFRESH_TOKEN);
+  if (!refreshToken) return null;
+
+  try {
+    const params = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: CLIENT_ID,
+    });
+
+    const res = await fetch("https://accounts.spotify.com/api/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params,
+    });
+
+    if (!res.ok) {
+      console.warn("Refresh token failed, clearing auth");
+      clearAuthToken();
+      return null;
+    }
+
+    const data = await res.json();
+    _storeTokens(data.access_token, data.refresh_token, data.expires_in);
+    return data.access_token;
+  } catch (err) {
+    console.error("Error refreshing token:", err);
+    return null;
+  }
+}
+
+// ── Token Getters ─────────────────────────────────────────────────────────────
 export function getAccessToken(): string | null {
-  return localStorage.getItem('spotify_access_token');
+  return localStorage.getItem(KEY_ACCESS_TOKEN);
+}
+
+export function getRefreshToken(): string | null {
+  return localStorage.getItem(KEY_REFRESH_TOKEN);
 }
 
 export function isTokenExpired(): boolean {
-  const expiresAt = localStorage.getItem('spotify_token_expires_at');
+  const expiresAt = localStorage.getItem(KEY_EXPIRES_AT);
   if (!expiresAt) return true;
-  return Date.now() > parseInt(expiresAt);
-}
-
-export function clearAuthToken(): void {
-  localStorage.removeItem('spotify_access_token');
-  localStorage.removeItem('spotify_token_expires_at');
+  // Consider expired 60s early to avoid edge cases
+  return Date.now() > parseInt(expiresAt) - 60_000;
 }
 
 export function isAuthenticated(): boolean {
   const token = getAccessToken();
+  if (!token) return false;
+  if (!isTokenExpired()) return true;
+  // Token expired but refresh token available — caller should try refresh
+  return !!localStorage.getItem(KEY_REFRESH_TOKEN);
+}
+
+export function hasValidToken(): boolean {
+  const token = getAccessToken();
   return !!token && !isTokenExpired();
+}
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+export function clearAuthToken(): void {
+  localStorage.removeItem(KEY_ACCESS_TOKEN);
+  localStorage.removeItem(KEY_REFRESH_TOKEN);
+  localStorage.removeItem(KEY_EXPIRES_AT);
+}
+
+// ── Nickname Store ────────────────────────────────────────────────────────────
+export function getNickname(spotifyUserId: string): string | null {
+  if (!spotifyUserId) return null;
+  return localStorage.getItem(NICKNAME_PREFIX + spotifyUserId);
+}
+
+export function setNickname(spotifyUserId: string, nickname: string): void {
+  if (!spotifyUserId) return;
+  localStorage.setItem(NICKNAME_PREFIX + spotifyUserId, nickname);
+}
+
+export function clearNickname(spotifyUserId: string): void {
+  localStorage.removeItem(NICKNAME_PREFIX + spotifyUserId);
 }
