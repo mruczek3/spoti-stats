@@ -245,6 +245,17 @@ export const App: React.FC = () => {
     return () => observer.disconnect();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // When the user switches tabs, the newly-rendered section starts with
+  // opacity:0 (fade-on-scroll). Force it visible after a short paint delay.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      document.querySelectorAll(".fade-on-scroll").forEach((el) => {
+        el.classList.add("visible");
+      });
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [activeSection]);
+
   // ── Nickname handler ───────────────────────────────────────────────────────
   const handleNicknameChange = (newNickname: string) => {
     setNicknameState(newNickname);

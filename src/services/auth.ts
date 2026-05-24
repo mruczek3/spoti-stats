@@ -14,52 +14,24 @@ const SCOPES = [
 const KEY_ACCESS_TOKEN = "spotify_access_token";
 const KEY_REFRESH_TOKEN = "spotify_refresh_token";
 const KEY_EXPIRES_AT = "spotify_token_expires_at";
-const KEY_LOCAL_IP = "spotify_local_ip";
 const NICKNAME_PREFIX = "spotify_nickname_";
 
-// ── IP / Redirect URI ─────────────────────────────────────────────────────────
-async function getLocalIP(): Promise<string> {
-  const stored = localStorage.getItem(KEY_LOCAL_IP);
-  if (stored) return stored;
+// ── Redirect URI ──────────────────────────────────────────────────────────────
+// Derives the redirect URI from the current page location so it works on:
+//   • localhost dev server  (http://localhost:5173/callback.html)
+//   • GitHub Pages sub-path (https://mruczek3.github.io/spoti-stats/callback.html)
+//   • any other deployment  (https://example.com/callback.html)
+function getRedirectUri(): string {
+  const loc = window.location;
 
-  try {
-    const pc = new (window as any).RTCPeerConnection({ iceServers: [] });
-    pc.createDataChannel("");
-    pc.createOffer().then((offer: any) => pc.setLocalDescription(offer));
+  // Trim the filename from the path so we always get the directory
+  // e.g. "/spoti-stats/"  → "/spoti-stats"
+  //      "/spoti-stats/index.html" → "/spoti-stats"
+  //      "/"              → ""
+  const pathDir = loc.pathname.replace(/\/[^/]*$/, "") || "";
 
-    return new Promise<string>((resolve) => {
-      const timeout = setTimeout(() => {
-        pc.close();
-        resolve(window.location.hostname);
-      }, 2000);
-      pc.onicecandidate = (ice: any) => {
-        if (!ice?.candidate) return;
-        const ip = /([0-9]{1,3}(\.[0-9]{1,3}){3})/.exec(
-          ice.candidate.candidate,
-        )?.[1];
-        if (ip && !ip.startsWith("127")) {
-          clearTimeout(timeout);
-          localStorage.setItem(KEY_LOCAL_IP, ip);
-          resolve(ip);
-          pc.close();
-        }
-      };
-    });
-  } catch {
-    return window.location.hostname;
-  }
+  return `${loc.protocol}//${loc.host}${pathDir}/callback.html`;
 }
-
-async function getRedirectUri(): Promise<string> {
-  let hostname = window.location.hostname;
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    hostname = await getLocalIP();
-  }
-  const port = window.location.port || "5173";
-  return `http://${hostname}:${port}/callback`;
-}
-
-let REDIRECT_URI: string = `${window.location.origin}/callback`;
 
 // ── PKCE helpers ──────────────────────────────────────────────────────────────
 function generateRandomString(length: number): string {
@@ -84,14 +56,16 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 export async function redirectToSpotifyAuth(): Promise<void> {
   const codeVerifier = generateRandomString(128);
   const codeChallenge = await generateCodeChallenge(codeVerifier);
+  const redirectUri = getRedirectUri();
 
-  REDIRECT_URI = await getRedirectUri();
   sessionStorage.setItem("spotify_code_verifier", codeVerifier);
+  // Also store the redirect URI so exchangeCodeForToken can use the exact same value
+  sessionStorage.setItem("spotify_redirect_uri", redirectUri);
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     response_type: "code",
-    redirect_uri: REDIRECT_URI,
+    redirect_uri: redirectUri,
     scope: SCOPES,
     code_challenge_method: "S256",
     code_challenge: codeChallenge,
@@ -104,7 +78,11 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
   const codeVerifier = sessionStorage.getItem("spotify_code_verifier");
   if (!codeVerifier) throw new Error("Code verifier not found");
 
-  const redirectUri = REDIRECT_URI || (await getRedirectUri());
+  // Use the exact redirect URI that was sent to Spotify
+  const redirectUri =
+    sessionStorage.getItem("spotify_redirect_uri") || getRedirectUri();
+
+  sessionStorage.removeItem("spotify_redirect_uri");
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
@@ -121,7 +99,7 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
   });
 
   if (!res.ok) {
-    const err = await res.json();
+    const err = await res.json().catch(() => ({}));
     throw new Error(
       `Token exchange failed: ${err.error_description || res.statusText}`,
     );
@@ -129,7 +107,6 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
 
   const data = await res.json();
   sessionStorage.removeItem("spotify_code_verifier");
-
   _storeTokens(data.access_token, data.refresh_token, data.expires_in);
   return data.access_token;
 }
@@ -141,9 +118,7 @@ function _storeTokens(
 ) {
   localStorage.setItem(KEY_ACCESS_TOKEN, accessToken);
   localStorage.setItem(KEY_EXPIRES_AT, String(Date.now() + expiresIn * 1000));
-  if (refreshToken) {
-    localStorage.setItem(KEY_REFRESH_TOKEN, refreshToken);
-  }
+  if (refreshToken) localStorage.setItem(KEY_REFRESH_TOKEN, refreshToken);
 }
 
 // ── Refresh Token ─────────────────────────────────────────────────────────────
@@ -165,7 +140,6 @@ export async function refreshAccessToken(): Promise<string | null> {
     });
 
     if (!res.ok) {
-      console.warn("Refresh token failed, clearing auth");
       clearAuthToken();
       return null;
     }
@@ -173,8 +147,7 @@ export async function refreshAccessToken(): Promise<string | null> {
     const data = await res.json();
     _storeTokens(data.access_token, data.refresh_token, data.expires_in);
     return data.access_token;
-  } catch (err) {
-    console.error("Error refreshing token:", err);
+  } catch {
     return null;
   }
 }
@@ -191,7 +164,6 @@ export function getRefreshToken(): string | null {
 export function isTokenExpired(): boolean {
   const expiresAt = localStorage.getItem(KEY_EXPIRES_AT);
   if (!expiresAt) return true;
-  // Consider expired 60s early to avoid edge cases
   return Date.now() > parseInt(expiresAt) - 60_000;
 }
 
@@ -199,13 +171,11 @@ export function isAuthenticated(): boolean {
   const token = getAccessToken();
   if (!token) return false;
   if (!isTokenExpired()) return true;
-  // Token expired but refresh token available — caller should try refresh
   return !!localStorage.getItem(KEY_REFRESH_TOKEN);
 }
 
 export function hasValidToken(): boolean {
-  const token = getAccessToken();
-  return !!token && !isTokenExpired();
+  return !!getAccessToken() && !isTokenExpired();
 }
 
 // ── Logout ────────────────────────────────────────────────────────────────────
