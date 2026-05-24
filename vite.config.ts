@@ -5,13 +5,13 @@ import { resolve } from "path";
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // Use react-app.html as the entry for the Vite/React SPA
-  // (index.html is kept for the legacy vanilla-JS GitHub Pages deploy)
-  root: ".",
+  // Relative base so the built assets work at any GitHub Pages sub-path
+  base: "./",
   build: {
     rollupOptions: {
       input: resolve(__dirname, "react-app.html"),
     },
     outDir: "dist/react",
+    emptyOutDir: true,
   },
 });

@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy React App to GitHub Pages
 
 on:
   push:
@@ -15,39 +15,53 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build React app
+        env:
+          VITE_SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+        run: npm run build
+
+      # The Vite build outputs to dist/react/ with react-app.html as entry.
+      # GitHub Pages needs the entry file to be named index.html.
+      - name: Prepare _site folder
+        run: |
+          mkdir -p _site
+          cp -r dist/react/. _site/
+          # Rename the Vite entry to index.html
+          if [ -f _site/react-app.html ]; then
+            mv _site/react-app.html _site/index.html
+          fi
+          # Copy the OAuth callback bridge (plain HTML, no React needed)
+          cp callback.html _site/callback.html
+          # Prevent Jekyll processing
+          touch _site/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
   deploy:
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build static site
-        env:
-          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
-        run: |
-          mkdir -p _site/assets
-          cp index.html dashboard.html callback.html _site/
-          cp assets/style.css assets/app.js assets/github-pages-base.js assets/config.example.js _site/assets/
-          if [ -n "$SPOTIFY_CLIENT_ID" ]; then
-            echo "window.SPOTIFY_CLIENT_ID = '${SPOTIFY_CLIENT_ID}';" > _site/assets/config.js
-          else
-            cp assets/config.example.js _site/assets/config.js
-          fi
-          touch _site/.nojekyll
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

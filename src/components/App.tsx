@@ -20,6 +20,7 @@ import {
   redirectToSpotifyAuth,
   clearAuthToken,
   refreshAccessToken,
+  exchangeCodeForToken,
   getNickname,
   setNickname as saveNickname,
 } from "../services/auth";
@@ -185,6 +186,27 @@ export const App: React.FC = () => {
       // If shared profile in URL, show social tab (no login needed)
       if (sharedProfile) {
         setActiveSection("social");
+        return;
+      }
+
+      // Pick up OAuth code stored by callback.html (GitHub Pages bridge)
+      const pendingCode = sessionStorage.getItem("spotify_oauth_code");
+      const pendingError = sessionStorage.getItem("spotify_oauth_error");
+      if (pendingError) {
+        sessionStorage.removeItem("spotify_oauth_error");
+        setError(`Spotify auth error: ${pendingError}`);
+        return;
+      }
+      if (pendingCode) {
+        sessionStorage.removeItem("spotify_oauth_code");
+        setIsLoading(true);
+        try {
+          await exchangeCodeForToken(pendingCode);
+          await fetchSpotifyData(false);
+        } catch (e) {
+          setError("Token exchange failed. Please try logging in again.");
+          setIsLoading(false);
+        }
         return;
       }
 

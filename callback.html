@@ -1,24 +1,76 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spotify Auth Callback</title>
-    <script src="assets/github-pages-base.js"></script>
-    <link rel="stylesheet" href="assets/style.css">
-</head>
-<body class="callback-page">
-    <div class="callback-container">
-        <div class="spinner"></div>
-        <p id="status">Authenticating with Spotify...</p>
-        <p id="error" style="display:none; color: #ff6b6b;"></p>
-    </div>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Authenticating…</title>
+        <style>
+            body {
+                margin: 0;
+                background: #0a0a0a;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+                font-family: "DM Sans", sans-serif;
+                color: #fff;
+            }
+            .spinner {
+                width: 48px;
+                height: 48px;
+                border: 3px solid rgba(29, 185, 84, 0.2);
+                border-top-color: #1db954;
+                border-radius: 50%;
+                animation: spin 0.8s linear infinite;
+                margin: 0 auto 1.25rem;
+            }
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+            p {
+                color: #b3b3b3;
+                font-size: 0.95rem;
+                text-align: center;
+            }
+        </style>
+    </head>
+    <body>
+        <div>
+            <div class="spinner"></div>
+            <p id="msg">Authenticating with Spotify…</p>
+        </div>
 
-    <script src="assets/config.js"></script>
-    <script src="assets/app.js"></script>
-    <script>
-        // Handle OAuth callback
-        handleSpotifyCallback();
-    </script>
-</body>
+        <script>
+            (function () {
+                var params = new URLSearchParams(window.location.search);
+                var code = params.get("code");
+                var error = params.get("error");
+
+                if (error) {
+                    sessionStorage.setItem("spotify_oauth_error", error);
+                    document.getElementById("msg").textContent =
+                        "Authentication failed. Redirecting…";
+                } else if (code) {
+                    // Hand the code to the React SPA via sessionStorage
+                    sessionStorage.setItem("spotify_oauth_code", code);
+                    document.getElementById("msg").textContent =
+                        "Almost there…";
+                } else {
+                    document.getElementById("msg").textContent =
+                        "Nothing to do here.";
+                }
+
+                // Redirect back to the React SPA root (works for any base path)
+                var base = window.location.href.replace(
+                    /callback\.html(\?.*)?$/,
+                    "",
+                );
+                setTimeout(function () {
+                    window.location.replace(base || "./");
+                }, 400);
+            })();
+        </script>
+    </body>
 </html>
