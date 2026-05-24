@@ -23,6 +23,7 @@ import {
   exchangeCodeForToken,
   getNickname,
   setNickname as saveNickname,
+  saveVisitSnapshot,
 } from "../services/auth";
 import * as spotifyApi from "../services/spotifyApi";
 import { generateMockUserProfile, generateComparison } from "../data/mockData";
@@ -32,6 +33,23 @@ import {
   getRecommendedRedirectUris,
   logNetworkInfo,
 } from "../services/networkUtils";
+
+// ── Stats ID generator ────────────────────────────────────────────────────────
+// Deterministic 6-char alphanumeric code from the Spotify user ID.
+function generateStatsId(userId: string): string {
+  if (!userId) return "";
+  let h = 5381;
+  for (let i = 0; i < userId.length; i++) {
+    h = ((h << 5) + h + userId.charCodeAt(i)) & 0x7fffffff;
+  }
+  const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += CHARS[h % CHARS.length];
+    h = Math.floor(h / CHARS.length);
+  }
+  return `STATS-${code}`;
+}
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 interface ToastData {
@@ -157,6 +175,18 @@ export const App: React.FC = () => {
       // Store userId and load saved nickname
       const uid: string = (userRes as any).id || "";
       setSpotifyUserId(uid);
+
+      // Persist a snapshot of this visit for evolution tracking
+      if (uid) {
+        saveVisitSnapshot(uid, {
+          date: new Date().toISOString(),
+          topArtists: spotifyProfile.topArtists.slice(0, 5).map((a) => a.name),
+          topTracks: spotifyProfile.topTracks.slice(0, 5).map((t) => t.name),
+          moodScore: Math.round(spotifyProfile.personality.valence),
+          energyScore: Math.round(spotifyProfile.personality.energy),
+        });
+      }
+
       const saved = getNickname(uid);
       if (saved) {
         setNicknameState(saved);
@@ -511,6 +541,7 @@ export const App: React.FC = () => {
           <Social
             profile={generateMockUserProfile()}
             sharedProfile={sharedProfile}
+            statsId={undefined}
           />
         </div>
       </div>
@@ -553,7 +584,11 @@ export const App: React.FC = () => {
           <TopArtists artists={profile!.topArtists} />
         )}
         {activeSection === "personality" && (
-          <PersonalityProfile profile={profile!} />
+          <PersonalityProfile
+            profile={profile!}
+            spotifyUserId={spotifyUserId || undefined}
+            statsId={spotifyUserId ? generateStatsId(spotifyUserId) : undefined}
+          />
         )}
         {activeSection === "listening" && <ListeningClock profile={profile!} />}
         {activeSection === "genres" && <GenreUniverse profile={profile!} />}
@@ -571,6 +606,7 @@ export const App: React.FC = () => {
             profile={profile || generateMockUserProfile()}
             nickname={nickname || undefined}
             sharedProfile={sharedProfile}
+            statsId={spotifyUserId ? generateStatsId(spotifyUserId) : undefined}
           />
         )}
       </main>

@@ -1,16 +1,55 @@
 import React, { useState, useEffect, useRef } from "react";
 import type { Artist } from "../data/mockData";
+import * as spotifyApi from "../services/spotifyApi";
+import { hasValidToken } from "../services/auth";
+import { spotifyArtistsToLocal } from "../utils/converters";
+
+type TimeRange = "short_term" | "medium_term" | "long_term";
 
 interface TopArtistsProps {
   artists: Artist[];
 }
 
-export const TopArtists: React.FC<TopArtistsProps> = ({ artists }) => {
+export const TopArtists: React.FC<TopArtistsProps> = ({
+  artists: initialArtists,
+}) => {
+  const [artists, setArtists] = useState<Artist[]>(initialArtists);
+  const [timeRange, setTimeRange] = useState<TimeRange>("medium_term");
+  const [loading, setLoading] = useState(false);
   const [visibleCount, setVisibleCount] = useState(10);
-  // Tracks the first index of the most recently revealed batch so new cards can animate in
-  const [newFrom, setNewFrom] = useState<number>(artists.length);
+  // newFrom: first index of the most recently revealed batch so new cards can animate in.
+  // Initialise to artists.length so no card is "new" on first render.
+  const [newFrom, setNewFrom] = useState<number>(initialArtists.length);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
+
+  const handleRangeChange = async (range: TimeRange) => {
+    if (loading) return;
+    setLoading(true);
+
+    if (hasValidToken()) {
+      try {
+        const data = (await spotifyApi.getTopArtists(range, 50)) as {
+          items: any[];
+        };
+        const newArtists = spotifyArtistsToLocal(data.items);
+        console.log(
+          "[TopArtists] order from API:",
+          newArtists.slice(0, 5).map((a) => a.name),
+        );
+        setArtists(newArtists);
+      } catch (err) {
+        console.error("[TopArtists] fetch failed:", err);
+      }
+    }
+
+    // Demo mode: timeRange still updates so button highlights correctly; artists unchanged.
+    // Set newFrom high so none of the initial 10 cards animate as "new".
+    setTimeRange(range);
+    setVisibleCount(10);
+    setNewFrom(50);
+    setLoading(false);
+  };
 
   const showMore = () => {
     setNewFrom(visibleCount);
@@ -37,51 +76,90 @@ export const TopArtists: React.FC<TopArtistsProps> = ({ artists }) => {
       className="section fade-on-scroll"
     >
       <div style={styles.container}>
-        <h2 style={{ marginBottom: "3rem" }}>Top Artists</h2>
-
-        {/* overflow:hidden prevents the expand from shifting layout during animation */}
-        <div style={{ overflow: "hidden", transition: "height 0.4s ease" }}>
-          <div style={styles.artistsGrid}>
-            {artists.slice(0, visibleCount).map((artist, idx) => {
-              const isNew = idx >= newFrom;
-              return (
-                <ArtistCard
-                  key={artist.id}
-                  artist={artist}
-                  rank={idx + 1}
-                  isNew={isNew}
-                  animDelay={isNew ? (idx - newFrom) * 0.08 : 0}
-                />
-              );
-            })}
+        {/* Header with time range selector */}
+        <div style={styles.header}>
+          <h2>Top Artists</h2>
+          <div style={styles.timeRangeSelector}>
+            {(["short_term", "medium_term", "long_term"] as const).map(
+              (range) => (
+                <button
+                  key={range}
+                  onClick={() => handleRangeChange(range)}
+                  style={{
+                    ...styles.timeRangeBtn,
+                    ...(timeRange === range ? styles.timeRangeBtnActive : {}),
+                  }}
+                >
+                  {range === "short_term"
+                    ? "Last 4 Weeks"
+                    : range === "medium_term"
+                      ? "Last 6 Months"
+                      : "All Time"}
+                </button>
+              ),
+            )}
           </div>
         </div>
 
-        {hasMore && (
-          <div style={styles.showMoreContainer}>
-            <button
-              style={styles.showMoreBtn}
-              onClick={showMore}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background =
-                  "#1ed760";
-                (e.currentTarget as HTMLButtonElement).style.transform =
-                  "scale(1.05)";
-                (e.currentTarget as HTMLButtonElement).style.boxShadow =
-                  "0 8px 24px rgba(29,185,84,0.4)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background =
-                  "#1db954";
-                (e.currentTarget as HTMLButtonElement).style.transform =
-                  "scale(1)";
-                (e.currentTarget as HTMLButtonElement).style.boxShadow =
-                  "0 4px 16px rgba(29,185,84,0.3)";
-              }}
-            >
-              Show more ({nextCount}/{artists.length})
-            </button>
+        {/* Loading skeleton */}
+        {loading ? (
+          <div style={styles.artistsGrid}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="skeleton-card card"
+                style={{ minHeight: "380px", animationDelay: `${i * 0.05}s` }}
+              />
+            ))}
           </div>
+        ) : (
+          <>
+            {/* overflow:hidden prevents the expand from shifting layout during animation */}
+            <div style={{ overflow: "hidden", transition: "height 0.4s ease" }}>
+              <div style={styles.artistsGrid}>
+                {artists.slice(0, visibleCount).map((artist, idx) => {
+                  const isNew = idx >= newFrom;
+                  return (
+                    <ArtistCard
+                      key={artist.id}
+                      artist={artist}
+                      rank={idx + 1}
+                      isNew={isNew}
+                      animDelay={isNew ? (idx - newFrom) * 0.08 : 0}
+                      loyaltyBadge={undefined}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {hasMore && (
+              <div style={styles.showMoreContainer}>
+                <button
+                  style={styles.showMoreBtn}
+                  onClick={showMore}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "#1ed760";
+                    (e.currentTarget as HTMLButtonElement).style.transform =
+                      "scale(1.05)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                      "0 8px 24px rgba(29,185,84,0.4)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "#1db954";
+                    (e.currentTarget as HTMLButtonElement).style.transform =
+                      "scale(1)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                      "0 4px 16px rgba(29,185,84,0.3)";
+                  }}
+                >
+                  Show more ({nextCount}/{artists.length})
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -117,6 +195,7 @@ interface ArtistCardProps {
   rank: number;
   isNew: boolean;
   animDelay: number;
+  loyaltyBadge?: "bronze" | "silver" | "gold";
 }
 
 const ArtistCard: React.FC<ArtistCardProps> = ({
@@ -124,6 +203,7 @@ const ArtistCard: React.FC<ArtistCardProps> = ({
   rank,
   isNew,
   animDelay,
+  loyaltyBadge,
 }) => {
   const years = Math.floor(
     (Date.now() - artist.firstListenedAt.getTime()) /
@@ -133,6 +213,15 @@ const ArtistCard: React.FC<ArtistCardProps> = ({
   const compatibility = Math.round(
     (artist.loyaltyScore + artist.popularity) / 2,
   );
+
+  const badgeEmoji =
+    loyaltyBadge === "bronze"
+      ? "🥉"
+      : loyaltyBadge === "silver"
+        ? "🥈"
+        : loyaltyBadge === "gold"
+          ? "🥇"
+          : null;
 
   return (
     <div
@@ -155,6 +244,9 @@ const ArtistCard: React.FC<ArtistCardProps> = ({
       <div style={styles.cardContent}>
         {/* Rank Badge */}
         <div style={styles.rankBadge}>{rank}</div>
+
+        {/* Loyalty Badge Icon — positioned below the rank badge */}
+        {badgeEmoji && <div style={styles.loyaltyBadgeIcon}>{badgeEmoji}</div>}
 
         {/* Compatibility Badge */}
         <div style={styles.compatibilityBadge}>{compatibility}% Match</div>
@@ -253,6 +345,32 @@ const styles: Record<string, React.CSSProperties> = {
     margin: "0 auto",
     padding: "0 2rem",
   },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "3rem",
+  },
+  timeRangeSelector: {
+    display: "flex",
+    gap: "1rem",
+  },
+  timeRangeBtn: {
+    padding: "0.75rem 1.5rem",
+    background: "rgba(29, 185, 84, 0.1)",
+    border: "1px solid rgba(29, 185, 84, 0.2)",
+    color: "#b3b3b3",
+    borderRadius: "8px",
+    cursor: "pointer",
+    transition: "all 0.3s ease",
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  timeRangeBtnActive: {
+    background: "#1db954",
+    color: "#000",
+    borderColor: "#1db954",
+    fontWeight: 700,
+  },
   artistsGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
@@ -292,6 +410,15 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: "700",
     fontSize: "1.1rem",
     zIndex: 3,
+  },
+  // Positioned below the rank badge (44px tall + 1rem top offset + 8px gap)
+  loyaltyBadgeIcon: {
+    position: "absolute",
+    top: "calc(1rem + 52px)",
+    left: "1rem",
+    fontSize: "1.4rem",
+    zIndex: 3,
+    lineHeight: "1",
   },
   compatibilityBadge: {
     position: "absolute",

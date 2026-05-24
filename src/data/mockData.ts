@@ -40,6 +40,7 @@ export interface Artist {
 
 export interface UserProfile {
   id: string;
+  statsId?: string; // STATS-XXXXXX app-level ID (never shows raw Spotify ID)
   displayName: string;
   avatar: string;
   topTracks: Track[];

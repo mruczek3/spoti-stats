@@ -185,6 +185,44 @@ export function clearAuthToken(): void {
   localStorage.removeItem(KEY_EXPIRES_AT);
 }
 
+// ── Visit Snapshots ─────────────────────────────────────────────────────────
+export interface VisitSnapshot {
+  date: string; // ISO date string
+  topArtists: string[]; // top 5 artist names
+  topTracks: string[]; // top 5 track names
+  moodScore: number;
+  energyScore: number;
+}
+
+const SNAPSHOTS_PREFIX = "spotify_visit_snapshots_";
+const MAX_SNAPSHOTS = 20;
+
+export function getVisitSnapshots(spotifyUserId: string): VisitSnapshot[] {
+  if (!spotifyUserId) return [];
+  try {
+    const raw = localStorage.getItem(SNAPSHOTS_PREFIX + spotifyUserId);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveVisitSnapshot(
+  spotifyUserId: string,
+  snapshot: VisitSnapshot,
+): void {
+  if (!spotifyUserId) return;
+  const existing = getVisitSnapshots(spotifyUserId);
+  existing.push(snapshot);
+  const trimmed = existing.slice(-MAX_SNAPSHOTS);
+  localStorage.setItem(
+    SNAPSHOTS_PREFIX + spotifyUserId,
+    JSON.stringify(trimmed),
+  );
+}
+
 // ── Nickname Store ────────────────────────────────────────────────────────────
 export function getNickname(spotifyUserId: string): string | null {
   if (!spotifyUserId) return null;

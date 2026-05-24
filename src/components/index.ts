@@ -4,6 +4,7 @@ export { HeroDashboard } from "./HeroDashboard";
 export { TopTracks } from "./TopTracks";
 export { TopArtists } from "./TopArtists";
 export { PersonalityProfile } from "./PersonalityProfile";
+export { PersonalityEvolution } from "./PersonalityEvolution";
 export { ListeningClock } from "./ListeningClock";
 export { GenreUniverse } from "./GenreUniverse";
 export { MoodTimeline } from "./MoodTimeline";
